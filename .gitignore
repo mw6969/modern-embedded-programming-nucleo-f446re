@@ -1,0 +1,35 @@
+# === STM32CubeIDE / Eclipse CDT build output ===
+Debug/
+Release/
+build/
+
+# === Eclipse workspace metadata (only relevant if you ever commit a whole workspace) ===
+.metadata/
+
+# === Project-local IDE settings ===
+# Uncomment if .settings/ contains machine-specific paths you don't want to share:
+# .settings/
+
+# === STM32CubeMX generated backup/log files ===
+*.ioc.bak
+*.log
+
+# === Toolchain / linker artifacts (in case they end up outside Debug/Release) ===
+*.o
+*.obj
+*.elf
+*.map
+*.hex
+*.bin
+*.list
+*.su
+*.d
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Editor junk ===
+*.swp
+*~
