@@ -21,27 +21,6 @@ Each project may cover several video lessons at once — a topic is committed as
 
 *(new rows are added when a new topic starts — e.g. LED blinking, RTOS etc. Within one topic, progress is tracked via commits and the project's own README)*
 
-## Repository Structure
-
-Each project is a self-contained STM32CubeIDE project (no CubeMX/HAL — register-level):
-
-```
-topic-slug/
-├── Inc/                          # header files
-├── Src/
-│   ├── main.c
-│   ├── syscalls.c                # newlib syscall stubs (STM32CubeIDE default)
-│   └── sysmem.c                  # newlib heap stub
-├── Startup/
-│   └── startup_stm32f446retx.s   # reset handler, vector table
-├── STM32F446RETX_FLASH.ld        # linker script
-├── STM32F446RETX_RAM.ld          # linker script
-├── .project / .cproject          # STM32CubeIDE project files, committed so the
-│                                  # project can be re-imported as-is
-└── README.md                     # what this project does, which lessons it covers,
-                                   # board notes
-```
-
 ## Reference Documents
 
 - [STM32F446xx Reference Manual (RM0390)](https://www.st.com/resource/en/reference_manual/rm0390-stm32f446xx-advanced-armbased-32bit-mcus-stmicroelectronics.pdf) — register-level details for the MCU
