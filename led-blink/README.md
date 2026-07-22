@@ -3,8 +3,7 @@
 Bare-metal LED blink on the STM32 Nucleo-F446RE.
 No HAL, no CubeMX-generated drivers — registers are accessed directly.
 
-The progression is tracked in the commit history, not duplicated here — see `git log`
-for this folder.
+The progression is tracked in the commit history — see `git log` for this folder.
 
 ## What it does
 
@@ -23,7 +22,7 @@ no interrupts at this stage — that comes in later topics).
 
 ## Libraries / dependencies
 
-No HAL, no external libraries — only:
+No external libraries — only:
 
 - **CMSIS core & device headers** (`core_cm4.h`, `cmsis_gcc.h`, `stm32f446xx.h`,
   `system_stm32f4xx.h`, etc., under `Inc/`) — ARM/ST-provided headers that give
@@ -40,17 +39,17 @@ register writes) lives in `Src/main.c`.
 
 ```
 led-blink/
-├── Inc/                          # CMSIS + device headers
+├── Inc/                               # CMSIS + device headers
 ├── Src/
-│   ├── main.c                    # the actual blink logic
-│   ├── syscalls.c                # newlib syscall stubs
-│   └── sysmem.c                  # newlib heap stub
+│   ├── main.c                         # the actual blink logic
+│   ├── syscalls.c                     # newlib syscall stubs
+│   └── sysmem.c                       # newlib heap stub
 ├── Startup/
-│   └── startup_stm32f446retx.s   # reset handler, vector table
-├── STM32F446RETX_FLASH.ld        # linker script
-├── STM32F446RETX_RAM.ld          # linker script
+│   └── startup_stm32f446retx.s        # reset handler, vector table
+├── STM32F446RETX_FLASH.ld             # linker script
+├── STM32F446RETX_RAM.ld               # linker script
 ├── .project / .cproject / .settings   # STM32CubeIDE project files
-└── README.md                     # this file
+└── README.md                          # this file
 ```
 
 ## Build & run
