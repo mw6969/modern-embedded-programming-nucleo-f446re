@@ -17,7 +17,7 @@ Each project may cover several video lessons at once — a topic is committed as
 
 | Folder | Course lessons | Topic |
 |--------|-----------------|-------|
-| [`led-blink`](./led-blink) | [#1–#10](https://www.youtube.com/playlist?list=PLPW8O6W-1chwyTzI3BHwBLbGQoPFxPAPM)+ | Blinking the on-board LED |
+| [`led-blink`](./led-blink) | [#1–#11](https://www.youtube.com/playlist?list=PLPW8O6W-1chwyTzI3BHwBLbGQoPFxPAPM)+ | Blinking the on-board LED |
 
 *(new rows are added when a new topic starts — e.g. LED blinking, RTOS etc. Within one topic, progress is tracked via commits and the project's own README)*
 
