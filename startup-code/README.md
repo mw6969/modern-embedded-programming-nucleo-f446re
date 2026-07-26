@@ -1,6 +1,6 @@
 # Startup Code
 
-Based on [`led-blink`](./led-blink) project — extended to explore what
+Based on [`led-blink`](../led-blink) project — extended to explore what
 happens **before** `main()` runs: the reset handler, the vector table,
 exception handlers, interrupt handlers and the IDE/debugger settings 
 that control how startup is entered and inspected.
