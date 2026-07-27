@@ -8,8 +8,7 @@ The progression is tracked in the commit history — see `git log` for this fold
 ## What it does
 
 Toggles the on-board user LED (**LD2**, connected to **PA5**) on and off in a loop,
-with the delay between toggles implemented as a busy-wait `for` loop (no timers,
-no interrupts at this stage — that comes in later topics).
+with the delay between toggles implemented as a busy-wait `for` loop.
 Contains "startup code" updates with exception handlers and interrupt handlers to
 perform controlled reset instead of freezing in case of hardware issues.
 
