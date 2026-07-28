@@ -7,11 +7,10 @@ The progression is tracked in the commit history — see `git log` for this fold
 
 ## What it does
 
-Toggles the on-board user LED (**LD2**, connected to **PA5**) on and off in a loop,
-with the delay between toggles implemented as a busy-wait `for` loop.
-Contains startup-code additions: exception handlers (HardFault, MemManage,
-BusFault, UsageFault, NMI) and unused peripheral IRQs are routed to a
-controlled NVIC_SystemReset() instead of silently hanging in an empty loop.
+Toggles the on-board user LED (**LD2**, connected to **PA5**) once per second,
+driven by **SysTick interrupt**. Contains startup-code additions:
+exception handlers (HardFault, MemManage, BusFault, UsageFault, NMI) and
+unused peripheral IRQs are routed to a controlled NVIC_SystemReset().
 
 ## Hardware
 
@@ -20,7 +19,7 @@ controlled NVIC_SystemReset() instead of silently hanging in an empty loop.
 | Board | STM32 Nucleo-64 F446RE |
 | MCU | STM32F446RE, ARM Cortex-M4F |
 | LED used | LD2 — GPIOA, pin 5 (PA5) |
-| Delay method | busy-wait `for` loop |
+| Delay method | SysTick interrupt, 1 Hz (`HCLK` = 16 MHz HSI, no PLL configured) |
 
 ## Libraries / dependencies
 
@@ -35,20 +34,21 @@ No external libraries — only:
   STM32CubeIDE, not modified.
 - **stm32f4xx_it.c** — fault and interrupt handling: overrides the weak
   Default_Handler for CPU faults and unused peripheral IRQs.
-
-Everything that actually blinks the LED (clock enable, GPIO mode/output
-register writes) lives in `Src/main.c`.
+- **system_stm32f4xx.c** - CMSIS Cortex-M4 Device Peripheral Access Layer System Source File
 
 ## Project structure
 
 ```
 led-blink/
 ├── Inc/                               # CMSIS + device headers
+│   └── bsp.h
 ├── Src/
-│   ├── main.c                         # the actual blink logic
+│   ├── bsp.c                          # Board Support Package source file contains actual blink logic
+│   ├── main.c                         # the start point
 │   ├── stm32f4xx_it.c                 # fault + unused-IRQ handlers (controlled reset)
 │   ├── syscalls.c                     # newlib syscall stubs
-│   └── sysmem.c                       # newlib heap stub
+│   ├── sysmem.c                       # newlib heap stub
+│   └── system_stm32f4xx.c             # CMSIS src
 ├── Startup/
 │   └── startup_stm32f446retx.s        # reset handler, vector table
 ├── STM32F446RETX_FLASH.ld             # linker script
