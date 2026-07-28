@@ -1,32 +1,12 @@
 /*
- * stm32f4xx_it.c
- *
- * Fault and interrupt handling for the Nucleo-F446RE (STM32F446RE, Cortex-M4F).
- *
+ * stm32f4xx_it.c -- Fault and interrupt handling.
  */
 
-#include "stm32f446xx.h"   /* CMSIS device header: pulls in core_cm4.h for NVIC_SystemReset() */
+#include "bsp.h"
+#include "stm32f446xx.h"
 
 /*******************************************************************************
- * assert_failed() -- the single "damage control" entry point for every fault
- * and every currently-unhandled interrupt.
- *
- * file/line identify where the assertion fired (handler name + source line),
- * which is enough to see in the debugger (Call Stack / Registers) which fault
- * or IRQ triggered it, even without a UART/logging setup yet.
- *
- * TBD: this currently only resets the MCU. Once the project has a way to
- * persist or report the failure (UART log, backup-register error code,
- * error LED pattern, etc.) that should happen here before the reset.
- ******************************************************************************/
-void assert_failed(char const *file, int line) {
-    (void)file;
-    (void)line;
-    NVIC_SystemReset();
-}
-
-/*******************************************************************************
- * CPU fault handlers (Cortex-M4 core exceptions)
+ * CPU fault handlers
  * These override the weak defaults in startup_stm32f446retx.s.
  ******************************************************************************/
 void NMI_Handler(void)        { assert_failed("NMI_Handler",        __LINE__); }
@@ -36,7 +16,8 @@ void BusFault_Handler(void)   { assert_failed("BusFault_Handler",   __LINE__); }
 void UsageFault_Handler(void) { assert_failed("UsageFault_Handler", __LINE__); }
 
 /*******************************************************************************
- * Common handler for every interrupt this project does not yet implement.
+ * Unused_Handler() -- common handler for every interrupt this project
+ * does not yet implement.
  ******************************************************************************/
 void Unused_Handler(void) {
     assert_failed("Unused_Handler", __LINE__);
@@ -48,7 +29,6 @@ void Unused_Handler(void) {
 UNUSED_IRQ(SVC_Handler)
 UNUSED_IRQ(DebugMon_Handler)
 UNUSED_IRQ(PendSV_Handler)
-UNUSED_IRQ(SysTick_Handler)          /* delay is still a busy-wait loop, no SysTick IRQ yet */
 
 /* STM32F446RE peripheral interrupts not yet used by this project */
 UNUSED_IRQ(WWDG_IRQHandler)                /* Window Watchdog interrupt */
