@@ -43,7 +43,7 @@ led-blink/
 ├── Inc/                               # CMSIS + device headers
 │   └── bsp.h
 ├── Src/
-│   ├── bsp.c                          # Board Support Package source file contains actual blink logic
+│   ├── bsp.c                          # Board Support Package contains actual blink logic
 │   ├── main.c                         # the start point
 │   ├── stm32f4xx_it.c                 # fault + unused-IRQ handlers (controlled reset)
 │   ├── syscalls.c                     # newlib syscall stubs
