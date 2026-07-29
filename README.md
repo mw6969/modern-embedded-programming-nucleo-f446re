@@ -2,7 +2,7 @@
 
 Practical exercises from Miro Samek's [Modern Embedded Systems Programming Course](https://www.youtube.com/playlist?list=PLPW8O6W-1chwyTzI3BHwBLbGQoPFxPAPM), ported and adapted for the **STM32 Nucleo-64 F446RE** board (ARM Cortex-M4F), since the original course targets the TI EK-TM4C123GXL (TivaC LaunchPad) / STM32 NUCLEO-C031C6.
 
-Each project may cover several video lessons at once — a topic is committed as a project once it reaches a meaningful, working state.
+A topic is committed as a project once it reaches a meaningful, working state.
 
 ## Hardware & Tools
 
