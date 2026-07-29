@@ -17,7 +17,7 @@ A topic is committed as a project once it reaches a meaningful, working state.
 
 | Folder | Course lessons | Topic |
 |--------|-----------------|-------|
-| [`led-blink`](./led-blink) | [#1–#16+](https://www.youtube.com/playlist?list=PLPW8O6W-1chwyTzI3BHwBLbGQoPFxPAPM) | Blinking the on-board LED |
+| [`led-blink`](./led-blink) | [#1–#19+](https://www.youtube.com/playlist?list=PLPW8O6W-1chwyTzI3BHwBLbGQoPFxPAPM) | Blinking the on-board LED |
 
 *(new rows are added when a new topic starts — e.g. LED blinking, RTOS etc. Within one topic, progress is tracked via commits and the project's own README)*
 
