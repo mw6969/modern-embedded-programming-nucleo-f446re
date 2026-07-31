@@ -37,8 +37,15 @@ void assert_failed(char const *file, int line) {
 }
 
 /*******************************************************************************
- * SysTick_Handler() -- toggles the on-board LED (LD2, PA5) once per interrupt.
+ * SysTick_Handler() -- toggles LD2 (PA5) via BSRR (no read-modify-write).
  ******************************************************************************/
 void SysTick_Handler(void) {
-    GPIOA->ODR ^= GPIO_ODR_OD5;
+    static const uint32_t led_bsrr[2] = {
+        GPIO_BSRR_BS5,   /* [0] -> turn on */
+        GPIO_BSRR_BR5    /* [1] -> turn off */
+    };
+    static uint8_t led_state = 0U;
+
+    GPIOA->BSRR = led_bsrr[led_state];
+    led_state ^= 1U;   /* switch the index, not the pin itself */
 }
