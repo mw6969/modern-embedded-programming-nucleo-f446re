@@ -6,5 +6,7 @@ int main(void) {
 
     __enable_irq();   /* GCC/CMSIS intrinsic */
 
-    for (;;) {}
+    for (;;) {
+        __WFI(); /* sleep until next interruption */
+    }
 }
