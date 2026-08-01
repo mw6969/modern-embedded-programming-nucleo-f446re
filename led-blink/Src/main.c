@@ -1,12 +1,12 @@
 #include "bsp.h"
-#include "stm32f446xx.h"
 
 int main(void) {
     BSP_init();
 
-    __enable_irq();   /* GCC/CMSIS intrinsic */
-
     for (;;) {
-        __WFI(); /* sleep until next interruption */
+    	BSP_ledGreenOn();
+    	BSP_delay(BSP_TICKS_PER_SEC / 4U);
+    	BSP_ledGreenOff();
+    	BSP_delay(BSP_TICKS_PER_SEC * 3U / 4U);
     }
 }

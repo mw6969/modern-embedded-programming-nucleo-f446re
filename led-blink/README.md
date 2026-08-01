@@ -1,16 +1,27 @@
 # LED Blink
 
-Bare-metal LED blink on the STM32 Nucleo-F446RE.
+Bare-metal LED blink on the STM32 Nucleo-F446RE, structured as a
+Foreground/Background architecture.
 No HAL, no CubeMX-generated drivers — registers are accessed directly.
 
 The progression is tracked in the commit history — see `git log` for this folder.
 
 ## What it does
 
-Toggles the on-board user LED (**LD2**, connected to **PA5**) once per second,
-driven by **SysTick interrupt**. Contains startup-code additions:
-exception handlers (HardFault, MemManage, BusFault, UsageFault, NMI) and
-unused peripheral IRQs are routed to a controlled NVIC_SystemReset().
+Toggles the on-board user LED (**LD2**, connected to **PA5**), with a 250 ms
+on / 750 ms off duty cycle. Contains startup-code additions: exception
+handlers (HardFault, MemManage, BusFault, UsageFault, NMI) and unused
+peripheral IRQs are routed to a controlled NVIC_SystemReset().
+
+### Foreground/Background architecture
+
+- **Foreground (interrupt level):** `SysTick_Handler` fires at
+  `BSP_TICKS_PER_SEC` (100 Hz) and increments a free-running tick counter
+  (`l_tickCtr`). This is the only thing that runs at interrupt priority.
+- **Background (main loop):** `main()` toggles the LED and calls
+  `BSP_delay()`, which polls the tick counter via the thread-safe accessor
+  `BSP_tickCtr()` (reads with interrupts disabled to avoid a torn read on
+  this 32-bit MCU).
 
 ## Hardware
 
@@ -19,7 +30,7 @@ unused peripheral IRQs are routed to a controlled NVIC_SystemReset().
 | Board | STM32 Nucleo-64 F446RE |
 | MCU | STM32F446RE, ARM Cortex-M4F |
 | LED used | LD2 — GPIOA, pin 5 (PA5) |
-| Delay method | SysTick interrupt, 1 Hz (`HCLK` = 16 MHz HSI, no PLL configured) |
+| Delay method | SysTick interrupt, 100 Hz tick (`HCLK` = 16 MHz HSI, no PLL configured) |
 
 ## Libraries / dependencies
 
