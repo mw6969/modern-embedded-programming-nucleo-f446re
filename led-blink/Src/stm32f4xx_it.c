@@ -1,24 +1,14 @@
-/*
- * stm32f4xx_it.c -- Fault and interrupt handling.
- */
-
 #include "bsp.h"
 #include "stm32f446xx.h"
 
-/*******************************************************************************
- * CPU fault handlers
- * These override the weak defaults in startup_stm32f446retx.s.
- ******************************************************************************/
+/* CPU fault handlers. These override the weak defaults in startup_stm32f446retx.s */
 void NMI_Handler(void)        { assert_failed("NMI_Handler",        __LINE__); }
 void HardFault_Handler(void)  { assert_failed("HardFault_Handler",  __LINE__); }
 void MemManage_Handler(void)  { assert_failed("MemManage_Handler",  __LINE__); }
 void BusFault_Handler(void)   { assert_failed("BusFault_Handler",   __LINE__); }
 void UsageFault_Handler(void) { assert_failed("UsageFault_Handler", __LINE__); }
 
-/*******************************************************************************
- * Unused_Handler() -- common handler for every interrupt this project
- * does not yet implement.
- ******************************************************************************/
+/* common handler for every interrupt this project does not yet implement. */
 void Unused_Handler(void) {
     assert_failed("Unused_Handler", __LINE__);
 }
