@@ -21,6 +21,12 @@ void BSP_ledGreenOn(void);
 /* turn the green LED off */
 void BSP_ledGreenOff(void);
 
+/* turn the external blue LED (PA6) on */
+void BSP_ledBlueOn(void);
+
+/* turn the external blue LED (PA6) off */
+void BSP_ledBlueOff(void);
+
 /* single "damage control" entry point for every fault and currently-unhandled interrupt */
 void assert_failed(char const *file, int line);
 

@@ -1,7 +1,7 @@
 #include "bsp.h"
 #include "stm32f446xx.h"
 
-/* CPU fault handlers. These override the weak defaults in startup_stm32f446retx.s */
+/* CPU fault handlers -- override the weak defaults in startup_stm32f446retx.s */
 void NMI_Handler(void)        { assert_failed("NMI_Handler",        __LINE__); }
 void HardFault_Handler(void)  { assert_failed("HardFault_Handler",  __LINE__); }
 void MemManage_Handler(void)  { assert_failed("MemManage_Handler",  __LINE__); }
@@ -15,10 +15,10 @@ void Unused_Handler(void) {
 
 #define UNUSED_IRQ(name) void name(void) { Unused_Handler(); }
 
-/* Cortex-M system handlers not yet used by this project */
+/* Cortex-M system handlers not yet used by this project
+ * (PendSV_Handler is implemented for real in MyROS/myros.c) */
 UNUSED_IRQ(SVC_Handler)
 UNUSED_IRQ(DebugMon_Handler)
-UNUSED_IRQ(PendSV_Handler)
 
 /* STM32F446RE peripheral interrupts not yet used by this project */
 UNUSED_IRQ(WWDG_IRQHandler)                /* Window Watchdog interrupt */
