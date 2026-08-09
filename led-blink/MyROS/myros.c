@@ -12,7 +12,6 @@ static OSThread * volatile OS_next;
 static OSThread *OS_thread[OS_MAX_THREADS];
 static uint8_t OS_threadNum;
 static uint8_t OS_currIdx;
-static volatile uint8_t OS_running;
 
 void OS_init(void) {
 	/* PendSV must run at the lowest priority: a context switch must never
@@ -59,13 +58,6 @@ void OSThread_start(OSThread *self,
 }
 
 void OS_tick(void) {
-	/* ignore ticks until OS_run() has bootstrapped the first thread --
-	 * otherwise PendSV could fire while main() is still on the MSP,
-	 * before there is any PSP-based thread context to return to */
-	if (!OS_running) {
-		return;
-	}
-
 	OS_next = OS_thread[OS_currIdx];
 	++OS_currIdx;
 	if (OS_currIdx >= OS_threadNum) {
@@ -92,6 +84,7 @@ static void OS_bootstrap(void) {
 	"  MOVS  r0,#0x02             \n"
 	"  MSR   CONTROL,r0           \n" /* switch SP to PSP, stay privileged */
 	"  ISB                        \n"
+	"  BL    OS_onStartup         \n" /* PSP is live now: safe to start ticking */
 	"  POP   {r0-r3}              \n"
 	"  POP   {r4}                 \n" /* faked R12, discarded */
 	"  POP   {lr}                 \n" /* faked LR, discarded  */
@@ -102,11 +95,11 @@ static void OS_bootstrap(void) {
 void OS_run(void) {
 	OS_curr = OS_thread[0];
 	OS_currIdx = (OS_threadNum > 1U) ? 1U : 0U;
-	OS_running = 1U;
 
 	OS_bootstrap();
 
 	/* never reached: OS_bootstrap() jumps straight into OS_curr */
+	Q_ERROR();
 }
 
 /* real context switch: called only after OS_run() has bootstrapped the

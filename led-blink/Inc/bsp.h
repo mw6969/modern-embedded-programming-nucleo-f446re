@@ -6,7 +6,7 @@
 /* systems clock tick [Hz] */
 #define BSP_TICKS_PER_SEC 100U
 
-/* initialize the board: GPIO, SysTick, and enable interrupts */
+/* initialize the board: GPIO */
 void BSP_init(void);
 
 /* get the current value of the system tick counter (thread-safe) */

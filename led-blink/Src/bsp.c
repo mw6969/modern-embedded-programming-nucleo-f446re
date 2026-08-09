@@ -15,15 +15,6 @@ void BSP_init(void) {
     /* configure PA6 (external blue LED) as output */
     GPIOA->MODER &= ~GPIO_MODER_MODER6;
     GPIOA->MODER |=  GPIO_MODER_MODER6_0;
-
-    /* configure SysTick */
-    SysTick->LOAD = (SystemCoreClock / BSP_TICKS_PER_SEC) - 1U;
-    SysTick->VAL  = 0U;
-    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk
-                  | SysTick_CTRL_TICKINT_Msk
-                  | SysTick_CTRL_ENABLE_Msk;
-
-    __enable_irq();
 }
 
 uint32_t BSP_tickCtr(void) {
@@ -56,6 +47,17 @@ void BSP_ledBlueOn(void) {
 
 void BSP_ledBlueOff(void) {
 	GPIOA->BSRR = GPIO_BSRR_BR6;
+}
+
+void OS_onStartup(void) {
+    /* configure SysTick */
+    SysTick->LOAD = (SystemCoreClock / BSP_TICKS_PER_SEC) - 1U;
+    SysTick->VAL  = 0U;
+    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk
+                  | SysTick_CTRL_TICKINT_Msk
+                  | SysTick_CTRL_ENABLE_Msk;
+
+    __enable_irq();
 }
 
 void assert_failed(char const *file, int line) {

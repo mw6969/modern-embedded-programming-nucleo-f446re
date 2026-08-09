@@ -26,4 +26,7 @@ void OS_run(void);
 /* advance the round-robin schedule; call this from SysTick_Handler */
 void OS_tick(void);
 
+/* callback to configure and start interrupts */
+void OS_onStartup(void);
+
 #endif /* MYROS_H_ */
