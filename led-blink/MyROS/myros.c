@@ -1,6 +1,8 @@
 #include "myros.h"
-#include "bsp.h"
 #include "stm32f446xx.h"
+#include "qassert.h"
+
+Q_DEFINE_THIS_MODULE("MYROS")
 
 #define OS_MAX_THREADS 4U
 
@@ -50,9 +52,8 @@ void OSThread_start(OSThread *self,
 
 	self->stackPtr = sp;
 
-	if (OS_threadNum >= OS_MAX_THREADS) {
-		assert_failed("OSThread_start", __LINE__);
-	}
+	Q_ASSERT(OS_threadNum < OS_MAX_THREADS);
+
 	OS_thread[OS_threadNum] = self;
 	++OS_threadNum;
 }

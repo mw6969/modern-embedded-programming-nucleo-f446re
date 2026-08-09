@@ -66,5 +66,9 @@ void assert_failed(char const *file, int line) {
 
 void SysTick_Handler(void) {
 	++l_tickCtr;
-	OS_tick();
+    OS_tick();
+}
+
+void Q_onAssert(char const *file, int line) {
+	assert_failed(file, line);
 }
