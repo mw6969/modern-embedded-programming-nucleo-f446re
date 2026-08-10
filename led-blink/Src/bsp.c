@@ -16,19 +16,19 @@ void BSP_init(void) {
 }
 
 void BSP_ledGreenOn(void) {
-	GPIOA->BSRR = GPIO_BSRR_BS5;
+    GPIOA->BSRR = GPIO_BSRR_BS5;
 }
 
 void BSP_ledGreenOff(void) {
-	GPIOA->BSRR = GPIO_BSRR_BR5;
+    GPIOA->BSRR = GPIO_BSRR_BR5;
 }
 
 void BSP_ledBlueOn(void) {
-	GPIOA->BSRR = GPIO_BSRR_BS6;
+    GPIOA->BSRR = GPIO_BSRR_BS6;
 }
 
 void BSP_ledBlueOff(void) {
-	GPIOA->BSRR = GPIO_BSRR_BR6;
+    GPIOA->BSRR = GPIO_BSRR_BR6;
 }
 
 void OS_onStartup(void) {
@@ -43,7 +43,7 @@ void OS_onStartup(void) {
 }
 
 void OS_onIdle(void) {
-	__WFI(); /* stop the CPU and wait for interrupt */
+    __WFI(); /* stop the CPU and wait for interrupt */
 }
 
 void assert_failed(char const *file, int line) {
@@ -53,7 +53,7 @@ void assert_failed(char const *file, int line) {
 }
 
 void SysTick_Handler(void) {
-	OS_tick();
+    OS_tick();
 
     __disable_irq();
     OS_sched();
@@ -61,5 +61,5 @@ void SysTick_Handler(void) {
 }
 
 void Q_onAssert(char const *file, int line) {
-	assert_failed(file, line);
+    assert_failed(file, line);
 }

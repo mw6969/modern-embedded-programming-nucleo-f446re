@@ -5,8 +5,8 @@
 
 /* Thread Control Block (TCB) */
 typedef struct {
-	void *stackPtr; /* stack pointer */
-	uint32_t timeout; /* timeout delay down-counter */
+    void *stackPtr; /* stack pointer */
+    uint32_t timeout; /* timeout delay down-counter */
 } OSThread;
 
 /* signature every thread's entry function must match */
@@ -14,9 +14,9 @@ typedef void (*OSThreadHandler)(void);
 
 /* register a thread with the scheduler and fake its initial stack frame */
 void OSThread_start(OSThread *self,
-	OSThreadHandler threadHandler,
-	void *stackBuf,
-	uint32_t stackSize);
+    OSThreadHandler threadHandler,
+    void *stackBuf,
+    uint32_t stackSize);
 
 /* configure the kernel (must run before OS_run()) */
 void OS_init(void *stackBuf, uint32_t stackSize);
