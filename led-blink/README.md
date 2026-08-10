@@ -30,8 +30,13 @@ A minimal preemptive round-robin scheduler for Cortex-M, built from scratch:
   first "return" into a thread looks identical to a normal exception return.
 - `OS_run()` bootstraps the very first thread with that same trick, then
   hands control to the scheduler.
-- `SysTick` (100 Hz) calls `OS_tick()`, which picks the next thread in
-  round-robin order and, if it differs from the running one, pends `PendSV`.
+- Threads block cooperatively via `OS_delay()`, which clears their bit in
+  `OS_readySet` and triggers an immediate reschedule instead of busy-waiting.
+- `SysTick` (100 Hz) calls `OS_tick()`, which counts down each blocked
+  thread's timeout and sets its ready bit once it expires, then calls
+  `OS_sched()`, which round-robins among the *ready* threads (falling back to
+  a dedicated idle thread that just executes `WFI` when none are ready) and,
+  if the choice differs from the running thread, pends `PendSV`.
 - `PendSV_Handler` performs the actual context switch: manually swaps R4-R11
   between the two threads' stacks; the hardware restores the rest
   (R0-R3/R12/LR/PC/xPSR) automatically on exception return.
