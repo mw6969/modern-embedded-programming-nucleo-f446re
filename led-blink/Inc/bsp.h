@@ -9,12 +9,6 @@
 /* initialize the board: GPIO */
 void BSP_init(void);
 
-/* get the current value of the system tick counter (thread-safe) */
-uint32_t BSP_tickCtr(void);
-
-/* delay for a specified number of system clock ticks */
-void BSP_delay(uint32_t ticks);
-
 /* turn the green LED on */
 void BSP_ledGreenOn(void);
 

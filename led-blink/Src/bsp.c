@@ -2,8 +2,6 @@
 #include "myros.h"
 #include "stm32f446xx.h"
 
-static volatile uint32_t l_tickCtr;
-
 void BSP_init(void) {
     /* enable clock for GPIOA */
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
@@ -15,22 +13,6 @@ void BSP_init(void) {
     /* configure PA6 (external blue LED) as output */
     GPIOA->MODER &= ~GPIO_MODER_MODER6;
     GPIOA->MODER |=  GPIO_MODER_MODER6_0;
-}
-
-uint32_t BSP_tickCtr(void) {
-	uint32_t tickCtr;
-
-	__disable_irq();
-	tickCtr = l_tickCtr;
-	__enable_irq();
-
-	return tickCtr;
-}
-
-void BSP_delay(uint32_t ticks) {
-	uint32_t start = BSP_tickCtr();
-	while((BSP_tickCtr() - start) < ticks) {
-	}
 }
 
 void BSP_ledGreenOn(void) {
@@ -60,6 +42,10 @@ void OS_onStartup(void) {
     __enable_irq();
 }
 
+void OS_onIdle(void) {
+	__WFI(); /* stop the CPU and wait for interrupt */
+}
+
 void assert_failed(char const *file, int line) {
     (void)file;
     (void)line;
@@ -67,8 +53,11 @@ void assert_failed(char const *file, int line) {
 }
 
 void SysTick_Handler(void) {
-	++l_tickCtr;
-    OS_tick();
+	OS_tick();
+
+    __disable_irq();
+    OS_sched();
+    __enable_irq();
 }
 
 void Q_onAssert(char const *file, int line) {

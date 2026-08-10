@@ -4,7 +4,7 @@
 
 Q_DEFINE_THIS_MODULE("MYROS")
 
-#define OS_MAX_THREADS 4U
+#define OS_MAX_THREADS 32U
 
 static OSThread * volatile OS_curr;
 static OSThread * volatile OS_next;
@@ -12,11 +12,45 @@ static OSThread * volatile OS_next;
 static OSThread *OS_thread[OS_MAX_THREADS];
 static uint8_t OS_threadNum;
 static uint8_t OS_currIdx;
+static uint32_t OS_readySet; /* bitmask of threads that are ready to run */
 
-void OS_init(void) {
+static OSThread idleThread;
+static void main_idleThread(void) {
+	while (1) {
+		OS_onIdle();
+	}
+}
+
+void OS_init(void *stackBuf, uint32_t stackSize) {
 	/* PendSV must run at the lowest priority: a context switch must never
 	 * preempt (and interleave with) another exception */
 	NVIC_SetPriority(PendSV_IRQn, (1U << __NVIC_PRIO_BITS) - 1U);
+
+	/* start idleThread thread */
+    OSThread_start(&idleThread, &main_idleThread, stackBuf, stackSize);
+}
+
+void OS_tick(void) {
+    for (uint8_t n = 1U; n < OS_threadNum; ++n) {
+        if (OS_thread[n]->timeout != 0U) {
+            --OS_thread[n]->timeout;
+            if (OS_thread[n]->timeout == 0U) {
+                OS_readySet |= (1U << (n - 1U));
+            }
+        }
+    }
+}
+
+void OS_delay(uint32_t ticks) {
+	__disable_irq();
+
+    /* never call OS_delay from the idleThread */
+    Q_REQUIRE(OS_curr != OS_thread[0]);
+
+    OS_curr->timeout = ticks;
+    OS_readySet &= ~(1U << (OS_currIdx - 1U));
+    OS_sched();
+    __enable_irq();
 }
 
 void OSThread_start(OSThread *self,
@@ -53,17 +87,30 @@ void OSThread_start(OSThread *self,
 
 	Q_ASSERT(OS_threadNum < OS_MAX_THREADS);
 
+	/* register the thread with the OS */
 	OS_thread[OS_threadNum] = self;
-	++OS_threadNum;
+    /* make the thread ready to run */
+    if (OS_threadNum > 0U) {
+        OS_readySet |= (1U << (OS_threadNum - 1U));
+    }
+    ++OS_threadNum;
 }
 
-void OS_tick(void) {
-	OS_next = OS_thread[OS_currIdx];
-	++OS_currIdx;
-	if (OS_currIdx >= OS_threadNum) {
-		OS_currIdx = 0U;
+void OS_sched(void) {
+	if (OS_readySet == 0U) { /* idle condition? */
+		OS_currIdx = 0U; /* index of the idle thread */
 	}
+	else {
+		do {
+			++OS_currIdx;
+			if (OS_currIdx == OS_threadNum) {
+				OS_currIdx = 1U;
+			}
+		} while ((OS_readySet & (1U << (OS_currIdx - 1U))) == 0U);
+	}
+	OS_next = OS_thread[OS_currIdx];
 
+	/* trigger PendSV, if needed */
 	if (OS_next != OS_curr) {
 		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
 	}
@@ -93,8 +140,10 @@ static void OS_bootstrap(void) {
 }
 
 void OS_run(void) {
-	OS_curr = OS_thread[0];
-	OS_currIdx = (OS_threadNum > 1U) ? 1U : 0U;
+	Q_REQUIRE(OS_threadNum > 1U);
+
+	OS_curr = OS_thread[1];
+	OS_currIdx = 1U;
 
 	OS_bootstrap();
 
