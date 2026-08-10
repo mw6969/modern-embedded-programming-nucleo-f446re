@@ -4,7 +4,7 @@
 
 Q_DEFINE_THIS_MODULE("MYROS")
 
-#define OS_MAX_THREADS 32U
+#define OS_MAX_THREADS 33U
 
 static OSThread * volatile OS_curr;
 static OSThread * volatile OS_next;
