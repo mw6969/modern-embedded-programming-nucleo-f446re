@@ -1,7 +1,7 @@
 # LED Blink → MyROS (mini preemptive kernel)
 
 Bare-metal on the STM32 Nucleo-F446RE. Started as a simple LED blink, grew
-into a hand-written minimal preemptive round-robin kernel running two
+into a hand-written minimal preemptive priority-based kernel running two
 independent threads. No HAL, no CubeMX-generated drivers, no RTOS library —
 registers and context switches are hand-rolled.
 
@@ -12,10 +12,10 @@ Progression is tracked in the commit history — see `git log` for this folder.
 Two LEDs blink independently, each on its own thread, scheduled preemptively
 by a from-scratch mini-kernel (`MyROS`):
 
-| Thread | LED | Rate |
-|---|---|---|
-| `blinkyGreen` | onboard LD2 (PA5) | 250 ms on / 750 ms off |
-| `blinkyBlue`  | external LED (PA6 / D12, breadboard + resistor) | 125 ms on / 125 ms off |
+| Thread | Priority | LED | Rate |
+|---|---|---|---|
+| `blinkyGreen` | 5 | onboard LD2 (PA5) | 250 ms on / 750 ms off |
+| `blinkyBlue`  | 2 | external LED (PA6 / D12, breadboard + resistor) | 125 ms on / 125 ms off |
 
 Also includes startup-code hardening: CPU fault handlers (HardFault,
 MemManage, BusFault, UsageFault, NMI) and every unused peripheral IRQ are
@@ -23,7 +23,7 @@ routed to a controlled `NVIC_SystemReset()` instead of silently hanging.
 
 ## MyROS — the mini-kernel (`MyROS/`)
 
-A minimal preemptive round-robin scheduler for Cortex-M, built from scratch:
+A minimal preemptive priority-based scheduler for Cortex-M, built from scratch:
 
 - `OSThread_start()` hand-builds each thread's initial stack — the exact
   16-word layout the CPU pushes automatically on a real exception — so the
@@ -34,9 +34,12 @@ A minimal preemptive round-robin scheduler for Cortex-M, built from scratch:
   `OS_readySet` and triggers an immediate reschedule instead of busy-waiting.
 - `SysTick` (100 Hz) calls `OS_tick()`, which counts down each blocked
   thread's timeout and sets its ready bit once it expires, then calls
-  `OS_sched()`, which round-robins among the *ready* threads (falling back to
-  a dedicated idle thread that just executes `WFI` when none are ready) and,
-  if the choice differs from the running thread, pends `PendSV`.
+  `OS_sched()`, which always picks the *highest-priority ready* thread
+  (via a `CLZ`-based lookup of the topmost set bit in `OS_readySet`,
+  falling back to a dedicated idle thread that just executes `WFI` when
+  none are ready) and, if the choice differs from the running thread,
+  pends `PendSV`. Because this runs every tick, a higher-priority thread
+  becoming ready preempts the currently running lower-priority one.
 - `PendSV_Handler` performs the actual context switch: manually swaps R4-R11
   between the two threads' stacks; the hardware restores the rest
   (R0-R3/R12/LR/PC/xPSR) automatically on exception return.

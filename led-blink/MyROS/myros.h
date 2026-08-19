@@ -7,6 +7,7 @@
 typedef struct {
     void *stackPtr; /* stack pointer */
     uint32_t timeout; /* timeout delay down-counter */
+    uint8_t prio; /* thread priority */
 } OSThread;
 
 /* signature every thread's entry function must match */
@@ -14,6 +15,7 @@ typedef void (*OSThreadHandler)(void);
 
 /* register a thread with the scheduler and fake its initial stack frame */
 void OSThread_start(OSThread *self,
+	uint8_t prio,
     OSThreadHandler threadHandler,
     void *stackBuf,
     uint32_t stackSize);

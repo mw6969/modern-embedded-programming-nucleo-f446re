@@ -10,9 +10,10 @@ static OSThread * volatile OS_curr;
 static OSThread * volatile OS_next;
 
 static OSThread *OS_thread[OS_MAX_THREADS];
-static uint8_t OS_threadNum;
-static uint8_t OS_currIdx;
 static uint32_t OS_readySet; /* bitmask of threads that are ready to run */
+static uint32_t OS_delayedSet; /* bitmask of threads that are delayed */
+
+#define LOG2(x) (32U - __CLZ(x))
 
 static OSThread idleThread;
 static void main_idleThread(void) {
@@ -27,33 +28,43 @@ void OS_init(void *stackBuf, uint32_t stackSize) {
     NVIC_SetPriority(PendSV_IRQn, (1U << __NVIC_PRIO_BITS) - 1U);
 
     /* start idleThread thread */
-    OSThread_start(&idleThread, &main_idleThread, stackBuf, stackSize);
+    OSThread_start(&idleThread, 0U, &main_idleThread, stackBuf, stackSize);
 }
 
 void OS_tick(void) {
-    for (uint8_t n = 1U; n < OS_threadNum; ++n) {
-        if (OS_thread[n]->timeout != 0U) {
-            --OS_thread[n]->timeout;
-            if (OS_thread[n]->timeout == 0U) {
-                OS_readySet |= (1U << (n - 1U));
-            }
-        }
+    uint32_t workingSet = OS_delayedSet;
+    while (workingSet != 0U) {
+    	OSThread *t = OS_thread[LOG2(workingSet)];
+    	uint32_t bit;
+    	Q_ASSERT((t != (OSThread *)0) && (t->timeout != 0U));
+
+    	bit = (1U << (t->prio - 1U));
+    	--t->timeout;
+    	if (t->timeout == 0U) {
+    		OS_readySet |= bit; /* insert to set */
+		    OS_delayedSet &= ~bit; /* remove from set */
+    	}
+    	workingSet &= ~bit; /* remove from working set */
     }
 }
 
 void OS_delay(uint32_t ticks) {
+	uint32_t bit;
     __disable_irq();
 
     /* never call OS_delay from the idleThread */
     Q_REQUIRE(OS_curr != OS_thread[0]);
 
     OS_curr->timeout = ticks;
-    OS_readySet &= ~(1U << (OS_currIdx - 1U));
+    bit = (1U << (OS_curr->prio - 1U));
+    OS_readySet &= ~bit;
+    OS_delayedSet |= bit;
     OS_sched();
     __enable_irq();
 }
 
 void OSThread_start(OSThread *self,
+	uint8_t prio,
     OSThreadHandler threadHandler,
     void *stackBuf,
     uint32_t stackSize)
@@ -62,6 +73,10 @@ void OSThread_start(OSThread *self,
      * boundary, since AAPCS requires 8-byte stack alignment at any
      * exception/function-call boundary */
     uint32_t *sp = (uint32_t *)(((uint32_t)stackBuf + stackSize) & ~0x7U);
+
+    /* priority must be in range and the priority level must be unused */
+    Q_REQUIRE((prio < OS_MAX_THREADS) && (OS_thread[prio] == (OSThread *)0));
+
 
     /* fake the exception stack frame the CPU would push automatically
      * on exception entry (hardware order, from high to low address) */
@@ -85,30 +100,23 @@ void OSThread_start(OSThread *self,
 
     self->stackPtr = sp;
 
-    Q_ASSERT(OS_threadNum < OS_MAX_THREADS);
-
     /* register the thread with the OS */
-    OS_thread[OS_threadNum] = self;
+    OS_thread[prio] = self;
+    self->prio = prio;
     /* make the thread ready to run */
-    if (OS_threadNum > 0U) {
-        OS_readySet |= (1U << (OS_threadNum - 1U));
+    if (prio > 0U) {
+        OS_readySet |= (1U << (prio - 1U));
     }
-    ++OS_threadNum;
 }
 
 void OS_sched(void) {
     if (OS_readySet == 0U) { /* idle condition? */
-        OS_currIdx = 0U; /* index of the idle thread */
+    	OS_next = OS_thread[0]; /* the idle thread */
     }
     else {
-        do {
-            ++OS_currIdx;
-            if (OS_currIdx == OS_threadNum) {
-                OS_currIdx = 1U;
-            }
-        } while ((OS_readySet & (1U << (OS_currIdx - 1U))) == 0U);
+    	OS_next = OS_thread[LOG2(OS_readySet)];
+    	Q_ASSERT(OS_next != (OSThread *)0);
     }
-    OS_next = OS_thread[OS_currIdx];
 
     /* trigger PendSV, if needed */
     if (OS_next != OS_curr) {
@@ -140,10 +148,8 @@ static void OS_bootstrap(void) {
 }
 
 void OS_run(void) {
-    Q_REQUIRE(OS_threadNum > 1U);
-
-    OS_curr = OS_thread[1];
-    OS_currIdx = 1U;
+    /* pick the highest-priority ready thread to bootstrap into */
+    OS_curr = OS_thread[LOG2(OS_readySet)];
 
     OS_bootstrap();
 
