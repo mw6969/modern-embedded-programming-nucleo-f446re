@@ -1,7 +1,7 @@
 #ifndef BSP_H_
 #define BSP_H_
 
-#include <stdint.h>
+#include "qpc.h"
 
 /* systems clock tick [Hz] */
 #define BSP_TICKS_PER_SEC 1000U
@@ -22,6 +22,9 @@ void BSP_ledBlueOn(void);
 void BSP_ledBlueOff(void);
 
 /* single "damage control" entry point for every fault and currently-unhandled interrupt */
-void assert_failed(char const *file, int line);
+_Noreturn void assert_failed(char const *file, int line);
+
+/* semaphore signaled by EXTI15_10_IRQHandler() when the user button (B1/PC13) is pressed */
+extern QXSemaphore B1_sema;
 
 #endif /* BSP_H_ */

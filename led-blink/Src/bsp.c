@@ -1,6 +1,25 @@
 #include "bsp.h"
-#include "myros.h"
 #include "stm32f446xx.h"
+
+void SysTick_Handler(void) {
+	QXK_ISR_ENTRY(); /* inform QXK about entering an ISR */
+
+    QF_TICK_X(0U, (void *)0); /* process time events for  */
+
+    QXK_ISR_EXIT(); /* inform QXK about exiting an ISR */
+}
+
+/* user button (B1/PC13): signals B1_sema on press (rising edge) */
+void EXTI15_10_IRQHandler(void) {
+    QXK_ISR_ENTRY(); /* inform QXK about entering an ISR */
+
+    if ((EXTI->PR & EXTI_PR_PR13) != 0U) {
+        EXTI->PR = EXTI_PR_PR13; /* clear the pending bit (write 1 to clear) */
+        QXSemaphore_signal(&B1_sema);
+    }
+
+    QXK_ISR_EXIT(); /* inform QXK about exiting an ISR */
+}
 
 void BSP_init(void) {
     /* enable clock for GPIOA */
@@ -13,6 +32,27 @@ void BSP_init(void) {
     /* configure PA6 (external blue LED) as output */
     GPIOA->MODER &= ~GPIO_MODER_MODER6;
     GPIOA->MODER |=  GPIO_MODER_MODER6_0;
+
+    /* enable clocks for GPIOC (user button B1 on PC13) and SYSCFG (EXTI routing) */
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+    /* configure PC13 as input (button pulls the line high when pressed) */
+    GPIOC->MODER &= ~GPIO_MODER_MODER13;
+
+    /* route EXTI13 to GPIOC pin 13 */
+    SYSCFG->EXTICR[3] &= ~SYSCFG_EXTICR4_EXTI13;
+    SYSCFG->EXTICR[3] |=  SYSCFG_EXTICR4_EXTI13_PC;
+
+    /* EXTI13: trigger on the rising edge (button press), unmask the interrupt */
+    EXTI->RTSR |=  EXTI_RTSR_TR13;
+    EXTI->FTSR &= ~EXTI_FTSR_TR13;
+    EXTI->IMR  |=  EXTI_IMR_MR13;
+
+    /* enable EXTI15_10 in the NVIC at a QF-aware priority */
+    NVIC_SetPriority(EXTI15_10_IRQn, QF_AWARE_ISR_CMSIS_PRI);
+    NVIC_ClearPendingIRQ(EXTI15_10_IRQn);
+    NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
 void BSP_ledGreenOn(void) {
@@ -31,7 +71,7 @@ void BSP_ledBlueOff(void) {
     GPIOA->BSRR = GPIO_BSRR_BR6;
 }
 
-void OS_onStartup(void) {
+void QF_onStartup(void) {
     /* configure SysTick */
     SysTick->LOAD = (SystemCoreClock / BSP_TICKS_PER_SEC) - 1U;
     SysTick->VAL  = 0U;
@@ -42,24 +82,19 @@ void OS_onStartup(void) {
     __enable_irq();
 }
 
-void OS_onIdle(void) {
+void QF_onCleanup(void) {
+}
+
+void QXK_onIdle(void) {
     __WFI(); /* stop the CPU and wait for interrupt */
 }
 
-void assert_failed(char const *file, int line) {
+_Noreturn void assert_failed(char const *file, int line) {
     (void)file;
     (void)line;
     NVIC_SystemReset();
 }
 
-void SysTick_Handler(void) {
-    OS_tick();
-
-    __disable_irq();
-    OS_sched();
-    __enable_irq();
-}
-
-void Q_onAssert(char const *file, int line) {
-    assert_failed(file, line);
+Q_NORETURN Q_onError(char const * const module, int_t const id) {
+    assert_failed(module, id);
 }
