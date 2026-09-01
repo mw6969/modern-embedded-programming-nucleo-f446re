@@ -1,6 +1,8 @@
 #include "bsp.h"
 #include "stm32f446xx.h"
 
+static QXMutex Morse_mutex;
+
 void SysTick_Handler(void) {
 	QXK_ISR_ENTRY(); /* inform QXK about entering an ISR */
 
@@ -53,6 +55,8 @@ void BSP_init(void) {
     NVIC_SetPriority(EXTI15_10_IRQn, QF_AWARE_ISR_CMSIS_PRI);
     NVIC_ClearPendingIRQ(EXTI15_10_IRQn);
     NVIC_EnableIRQ(EXTI15_10_IRQn);
+
+    QXMutex_init(&Morse_mutex, 6U); /* priority ceiling 6 */
 }
 
 void BSP_ledGreenOn(void) {
@@ -63,12 +67,44 @@ void BSP_ledGreenOff(void) {
     GPIOA->BSRR = GPIO_BSRR_BR5;
 }
 
+void BSP_ledGreenToggle(void) {
+    QF_CRIT_STAT;
+    QF_CRIT_ENTRY();
+    GPIOA->ODR ^= GPIO_ODR_OD5;
+    QF_CRIT_EXIT();
+}
+
 void BSP_ledBlueOn(void) {
     GPIOA->BSRR = GPIO_BSRR_BS6;
 }
 
 void BSP_ledBlueOff(void) {
     GPIOA->BSRR = GPIO_BSRR_BR6;
+}
+
+void BSP_sendMorseCode(uint32_t bitmask) {
+    uint32_t volatile delay_ctr;
+    enum { DOT_DELAY = 150 };
+
+    QXMutex_lock(&Morse_mutex, QXTHREAD_NO_TIMEOUT); /* timeout for waiting */
+
+    /* MSB first, one dot-length slot per bit: 1 = LED on, 0 = LED off;
+     * a run of 3 set bits reads as a dash, a lone set bit as a dot */
+    for (; bitmask != 0U; bitmask <<= 1) {
+        if ((bitmask & (1U << 31)) != 0U) {
+            BSP_ledBlueOn();
+        }
+        else {
+            BSP_ledBlueOff();
+        }
+        for (delay_ctr = DOT_DELAY; delay_ctr != 0U; --delay_ctr) {
+        }
+    }
+    BSP_ledBlueOff();
+    for (delay_ctr = 7*DOT_DELAY; delay_ctr != 0U; --delay_ctr) { /* word gap */
+    }
+
+    QXMutex_unlock(&Morse_mutex);
 }
 
 void QF_onStartup(void) {

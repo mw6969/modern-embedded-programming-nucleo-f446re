@@ -10,9 +10,9 @@ static void main_blinkyGreen(QXThread * const this) {
         QXSemaphore_wait(&B1_sema, /* pointer to semaphore to wait on */
                          QXTHREAD_NO_TIMEOUT); /* timeout for waiting */
 
-    	for (uint32_t volatile i = 1500U; i != 0U; --i) {
-            BSP_ledGreenOn();
-            BSP_ledGreenOff();
+    	/* even count: leaves the LED back in the OFF state after each press */
+    	for (uint32_t volatile i = 1900U; i != 0U; --i) {
+            BSP_ledGreenToggle();
     	}
     }
 }
@@ -21,17 +21,26 @@ static uint32_t stack_blinkyBlue[40];
 static QXThread blinkyBlue;
 static void main_blinkyBlue(QXThread * const this) {
     while (1) {
-    	for (uint32_t volatile i = 3*1500U; i != 0U; --i) {
-    		BSP_ledBlueOn();
-    		BSP_ledBlueOff();
-    	}
-    	QXThread_delay(50U); /* block for 50 tick */
+    	BSP_sendMorseCode(0xA8EEE2A0U); /* SOS */
+    	QXThread_delay(1U); /* block for 1 tick */
+    }
+}
+
+static uint32_t stack_blinkyBlue2[40];
+static QXThread blinkyBlue2;
+static void main_blinkyBlue2(QXThread * const this) {
+    while (1) {
+    	BSP_sendMorseCode(0xE22A3800U); /* TEST */
+    	BSP_sendMorseCode(0xE22A3800U); /* TEST */
+    	QXThread_delay(5U); /* block for 5 tick */
     }
 }
 
 int main(void) {
-    BSP_init();
+    /* QF_init() must run first: it zeroes the AO registry, which would wipe
+     * out the QXMutex that BSP_init() registers */
     QF_init();
+    BSP_init();
 
     /* initialize the B1_sema semaphore as binary, signaling semaphore */
     QXSemaphore_init(&B1_sema, /* pointer to semaphore to initialize */
@@ -54,7 +63,15 @@ int main(void) {
 				   stack_blinkyBlue, sizeof(stack_blinkyBlue), /* stack */
 				   (void *)0); /* extra parameter (not used) */
 
-   QF_run();
+    /* Initialize and start blinkyBlue2 thread */
+    QXThread_ctor(&blinkyBlue2, &main_blinkyBlue2, 0);
+    QXTHREAD_START(&blinkyBlue2,
+    		       1U, /* priority */
+			       (void *)0, 0, /* message queue (not used) */
+				   stack_blinkyBlue2, sizeof(stack_blinkyBlue2), /* stack */
+				   (void *)0); /* extra parameter (not used) */
+
+    QF_run();
 
     return 0; /* unreachable: OS_run() never returns */
 }

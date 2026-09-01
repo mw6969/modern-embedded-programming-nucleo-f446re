@@ -10,16 +10,27 @@ Progression is tracked in the commit history — see `git log` for this folder.
 
 ## What it does
 
-Two LEDs, each on its own QXK extended thread:
+Three QXK extended threads:
 
 | Thread | Priority | LED | Behavior |
 |---|---|---|---|
-| `blinkyGreen` | 5 | onboard LD2 (PA5) | blinks once each time the user button (B1) is pressed |
-| `blinkyBlue`  | 2 | external LED (PA6 / D12, breadboard + resistor) | blinks continuously, blocking via `QXThread_delay()` |
+| `blinkyGreen` | 5 | onboard LD2 (PA5) | toggles once each time the user button (B1) is pressed |
+| `blinkyBlue`  | 2 | external LED (PA6 / D12, breadboard + resistor) | sends "SOS" in Morse code, repeating |
+| `blinkyBlue2` | 1 | external LED (PA6) | sends "TEST" (twice) in Morse code, repeating |
 
 The button press is detected in `EXTI15_10_IRQHandler` (PC13), which signals
 a binary semaphore (`B1_sema`) that `blinkyGreen` blocks on — a minimal
 example of ISR-to-thread synchronization.
+
+`blinkyBlue` and `blinkyBlue2` share the same physical LED, so both route
+their Morse transmissions through `BSP_sendMorseCode()`, guarded by a
+`QXMutex` (`Morse_mutex`) so the two messages never interleave. The mutex
+uses the **priority-ceiling protocol** (ceiling priority 6 — above every
+thread's base priority) so that whichever thread holds the lock is briefly
+boosted above `blinkyGreen` (5) for the duration of the transmission. That
+bounds priority inversion: an unrelated, higher-priority thread that never
+touches the mutex can't preempt the lock holder and stretch out how long
+the shared LED stays unavailable.
 
 Also includes startup-code hardening: CPU fault handlers (HardFault,
 MemManage, BusFault, UsageFault) and every unused peripheral IRQ are routed
