@@ -47,7 +47,7 @@
 									<listOptionValue builtIn="false" value="../Inc"/>
 									<listOptionValue builtIn="false" value="../Inc/CMSIS"/>
 									<listOptionValue builtIn="false" value="../Inc/Vendor"/>
-									<listOptionValue builtIn="false" value="../Inc/QPC"/>
+									<listOptionValue builtIn="false" value="../Inc/uCOS2"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.793785467" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -75,9 +75,9 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Inc"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="QPC"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Startup"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="uCOS2"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -125,7 +125,7 @@
 									<listOptionValue builtIn="false" value="../Inc"/>
 									<listOptionValue builtIn="false" value="../Inc/CMSIS"/>
 									<listOptionValue builtIn="false" value="../Inc/Vendor"/>
-									<listOptionValue builtIn="false" value="../Inc/QPC"/>
+									<listOptionValue builtIn="false" value="../Inc/uCOS2"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1698466648" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -153,9 +153,9 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Inc"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="QPC"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Startup"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="uCOS2"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -170,8 +170,14 @@
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
 	<storageModule moduleId="scannerConfiguration">
 		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		<scannerConfigBuildInfo instanceId="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.release.657144001;com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.release.657144001.;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.1922178986;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.input.cpp.1971126752">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
 		<scannerConfigBuildInfo instanceId="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.707968229;com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.707968229.;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.2116245730;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.793785467">
 			<autodiscovery enabled="false" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.707968229;com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.707968229.;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.350859984;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.input.cpp.1534135828">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
 		</scannerConfigBuildInfo>
 		<scannerConfigBuildInfo instanceId="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.release.657144001;com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.release.657144001.;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.634014972;com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1698466648">
 			<autodiscovery enabled="false" problemReportingEnabled="true" selectedProfileId=""/>

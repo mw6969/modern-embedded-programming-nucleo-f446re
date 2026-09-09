@@ -1,77 +1,119 @@
-#include "bsp.h"
-#include "qpc.h"
+/* Blinky/Button with uC/OS-II RTOS */
+#include "ucos_ii.h" /* uC/OS-II API, port and compile-time configuration */
+#include "qassert.h" /* embedded-system-friendly assertions */
+#include "bsp.h"     /* Board Support Package */
 
-QXSemaphore B1_sema; /* semaphore to signal a button press */
+Q_DEFINE_THIS_MODULE("main") /* this module name for Q_ASSERT() */
 
-static uint32_t stack_blinkyGreen[40];
-static QXThread blinkyGreen;
-static void main_blinkyGreen(QXThread * const this) {
-    while (1) {
-        QXSemaphore_wait(&B1_sema, /* pointer to semaphore to wait on */
-                         QXTHREAD_NO_TIMEOUT); /* timeout for waiting */
+/* The Blinky task ============================================================*/
+OS_STK stack_blinky[APP_CFG_BLINKY_TASK_STK_SIZE]; /* task stack */
 
-    	/* even count: leaves the LED back in the OFF state after each press */
-    	for (uint32_t volatile i = 1900U; i != 0U; --i) {
-            BSP_ledGreenToggle();
-    	}
+enum { INITIAL_BLINK_TIME = (OS_TICKS_PER_SEC / 4) };
+
+/* data shared between tasks */
+INT32U volatile shared_blink_time = INITIAL_BLINK_TIME;
+OS_EVENT *shared_blink_time_mutex;
+
+void main_blinky(void *pdata) { /* task function */
+    (void)pdata; /* unused parameter(s) */
+
+    while (1) { /* endless "superloop" */
+        INT8U err;
+        INT32U bt; /* local copy of shared_blink_time */
+
+        OSMutexPend(shared_blink_time_mutex, 0, &err); /* mutual exclusion */
+        Q_ASSERT(err == 0);
+        bt = shared_blink_time;
+        OSMutexPost(shared_blink_time_mutex); /* mutual exclusion */
+
+        BSP_ledGreenOn();
+        OSTimeDly(bt);       /* BLOCKING! */
+        BSP_ledGreenOff();
+        OSTimeDly(bt * 3U);  /* BLOCKING! */
     }
 }
 
-static uint32_t stack_blinkyBlue[40];
-static QXThread blinkyBlue;
-static void main_blinkyBlue(QXThread * const this) {
-    while (1) {
-    	BSP_sendMorseCode(0xA8EEE2A0U); /* SOS */
-    	QXThread_delay(1U); /* block for 1 tick */
+/* The Button task =============================================================*/
+OS_STK stack_button[APP_CFG_BUTTON_TASK_STK_SIZE]; /* task stack */
+
+void main_button(void *pdata) { /* task function */
+    (void)pdata; /* unused parameter(s) */
+
+    while (1) { /* endless "superloop" */
+        INT8U err; /* uC/OS-II error status */
+
+        /* wait on the button-press semaphore (BLOCK indefinitely) */
+        OSSemPend(BSP_semaPress, 0, &err); /* BLOCKING! */
+        Q_ASSERT(err == 0);
+        BSP_ledBlueOn();
+
+        /* update the blink time for the 'blinky' task */
+        OSMutexPend(shared_blink_time_mutex, 0, &err); /* mutual exclusion */
+        Q_ASSERT(err == 0);
+        shared_blink_time >>= 1; /* shorten the blink time by factor of 2 */
+        if (shared_blink_time == 0U) {
+            shared_blink_time = INITIAL_BLINK_TIME;
+        }
+        OSMutexPost(shared_blink_time_mutex); /* mutual exclusion */
+
+        /* wait on the button-release semaphore (BLOCK indefinitely) */
+        OSSemPend(BSP_semaRelease, 0, &err); /* BLOCKING! */
+        Q_ASSERT(err == 0);
+        BSP_ledBlueOff();
     }
 }
 
-static uint32_t stack_blinkyBlue2[40];
-static QXThread blinkyBlue2;
-static void main_blinkyBlue2(QXThread * const this) {
-    while (1) {
-    	BSP_sendMorseCode(0xE22A3800U); /* TEST */
-    	BSP_sendMorseCode(0xE22A3800U); /* TEST */
-    	QXThread_delay(5U); /* block for 5 tick */
-    }
-}
+OS_EVENT *BSP_semaPress;   /* global semaphore handle */
+OS_EVENT *BSP_semaRelease; /* global semaphore handle */
 
+/* the main function ===========================================================*/
 int main(void) {
-    /* QF_init() must run first: it zeroes the AO registry, which would wipe
-     * out the QXMutex that BSP_init() registers */
-    QF_init();
-    BSP_init();
+    INT8U err;
 
-    /* initialize the B1_sema semaphore as binary, signaling semaphore */
-    QXSemaphore_init(&B1_sema, /* pointer to semaphore to initialize */
-                     0U,  /* initial semaphore count (signaling semaphore) */
-                     1U); /* maximum semaphore count (binary semaphore) */
+    BSP_init(); /* initialize the BSP */
+    OSInit();   /* initialize uC/OS-II */
 
-    /* Initialize and start blinkyGreen thread */
-    QXThread_ctor(&blinkyGreen, &main_blinkyGreen, 0);
-    QXTHREAD_START(&blinkyGreen,
-    		       5U, /* priority */
-			       (void *)0, 0, /* message queue (not used) */
-                   stack_blinkyGreen, sizeof(stack_blinkyGreen), /* stack */
-				   (void *)0); /* extra parameter (not used) */
+    /* initialize the RTOS objects before using them */
+    BSP_semaPress   = OSSemCreate(0);
+    Q_ASSERT(BSP_semaPress != (OS_EVENT *)0);
+    BSP_semaRelease = OSSemCreate(0);
+    Q_ASSERT(BSP_semaRelease != (OS_EVENT *)0);
+    shared_blink_time_mutex = OSMutexCreate(OS_LOWEST_PRIO - 5U, &err);
+    Q_ASSERT(err == 0);
 
-    /* Initialize and start blinkyBlue thread */
-    QXThread_ctor(&blinkyBlue, &main_blinkyBlue, 0);
-    QXTHREAD_START(&blinkyBlue,
-    		       2U, /* priority */
-			       (void *)0, 0, /* message queue (not used) */
-				   stack_blinkyBlue, sizeof(stack_blinkyBlue), /* stack */
-				   (void *)0); /* extra parameter (not used) */
+    /* create uC/OS-II task, see NOTE1 */
+    err = OSTaskCreateExt(&main_blinky, /* the task function */
+          (void *)0,      /* the 'pdata' parameter (not used) */
+          &stack_blinky[APP_CFG_BLINKY_TASK_STK_SIZE - 1U], /* ptos */
+          APP_CFG_BLINKY_TASK_PRIO, /* uC/OS-II task priority */
+          APP_CFG_BLINKY_TASK_PRIO, /* unique priority is used as the task ID */
+          stack_blinky,   /* pbos */
+          APP_CFG_BLINKY_TASK_STK_SIZE, /* stack depth */
+          (void *)0,      /* pext */
+          (INT16U)0);     /* task options */
+    Q_ASSERT(err == 0);
 
-    /* Initialize and start blinkyBlue2 thread */
-    QXThread_ctor(&blinkyBlue2, &main_blinkyBlue2, 0);
-    QXTHREAD_START(&blinkyBlue2,
-    		       1U, /* priority */
-			       (void *)0, 0, /* message queue (not used) */
-				   stack_blinkyBlue2, sizeof(stack_blinkyBlue2), /* stack */
-				   (void *)0); /* extra parameter (not used) */
+    /* create uC/OS-II task, see NOTE1 */
+    err = OSTaskCreateExt(&main_button, /* the task function */
+          (void *)0,      /* the 'pdata' parameter (not used) */
+          &stack_button[APP_CFG_BUTTON_TASK_STK_SIZE - 1U], /* ptos */
+          APP_CFG_BUTTON_TASK_PRIO, /* uC/OS-II task priority */
+          APP_CFG_BUTTON_TASK_PRIO, /* unique priority is used as the task ID */
+          stack_button,   /* pbos */
+          APP_CFG_BUTTON_TASK_STK_SIZE, /* stack depth */
+          (void *)0,      /* pext */
+          (INT16U)0);     /* task options */
+    Q_ASSERT(err == 0);
 
-    QF_run();
+    BSP_start(); /* configure and start the interrupts */
 
-    return 0; /* unreachable: OS_run() never returns */
+    OSStart(); /* start the uC/OS-II scheduler... */
+    return 0; /* NOTE: the scheduler does NOT return */
 }
+
+/*******************************************************************************
+* NOTE1:
+* The call to uC/OS-II API OSTaskCreateExt() assumes that the pointer to the
+* top-of-stack (ptos) is at the end of the provided stack memory. This is
+* correct only for CPUs with downward-growing stack (true for ARM Cortex-M).
+*/

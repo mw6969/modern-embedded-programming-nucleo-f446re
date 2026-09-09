@@ -1,136 +1,105 @@
-#include "bsp.h"
+#include "ucos_ii.h" /* uC/OS-II API, port and compile-time configuration */
+#include "qassert.h" /* embedded-system-friendly assertions */
+#include "bsp.h"     /* Board Support Package */
 #include "stm32f446xx.h"
 
-static QXMutex Morse_mutex;
+/* uCOS-II application hooks =================================================*/
+void App_TimeTickHook(void) {
+    /* state of the button debouncing, see below */
+    static struct ButtonsDebouncing {
+        uint32_t depressed;
+        uint32_t previous;
+    } buttons = { 0U, 0U };
+    uint32_t current;
+    uint32_t tmp;
 
-void SysTick_Handler(void) {
-	QXK_ISR_ENTRY(); /* inform QXK about entering an ISR */
+    enum { BTN_B1 = (1U << 13) }; /* user button B1 on PC13 */
 
-    QF_TICK_X(0U, (void *)0); /* process time events for  */
-
-    QXK_ISR_EXIT(); /* inform QXK about exiting an ISR */
-}
-
-/* user button (B1/PC13): signals B1_sema on press (rising edge) */
-void EXTI15_10_IRQHandler(void) {
-    QXK_ISR_ENTRY(); /* inform QXK about entering an ISR */
-
-    if ((EXTI->PR & EXTI_PR_PR13) != 0U) {
-        EXTI->PR = EXTI_PR_PR13; /* clear the pending bit (write 1 to clear) */
-        QXSemaphore_signal(&B1_sema);
+    /* Perform the debouncing of the B1 button. The algorithm for debouncing
+     * adapted from the book "Embedded Systems Dictionary" by Jack Ganssle
+     * and Michael Barr, page 71.
+     *
+     * NOTE: B1 reads HIGH while pressed (no inversion, unlike a pulled-up
+     * active-low button), matching the EXTI rising-edge wiring used
+     * elsewhere in this project.
+     */
+    current = GPIOC->IDR & BTN_B1; /* read B1 */
+    tmp = buttons.depressed; /* save the debounced depressed buttons */
+    buttons.depressed |= (buttons.previous & current); /* set depressed */
+    buttons.depressed &= (buttons.previous | current); /* clear released */
+    buttons.previous   = current; /* update the history */
+    tmp ^= buttons.depressed;     /* changed debounced depressed */
+    if ((tmp & BTN_B1) != 0U) {  /* debounced B1 state changed? */
+        if ((buttons.depressed & BTN_B1) != 0U) { /* is B1 depressed? */
+            OSSemPost(BSP_semaPress); /* post the "button-pressed" semaphore */
+        }
+        else { /* the button is released */
+            OSSemPost(BSP_semaRelease); /* post the "button-release" semaphore */
+        }
     }
-
-    QXK_ISR_EXIT(); /* inform QXK about exiting an ISR */
 }
+/*..........................................................................*/
+void App_TaskIdleHook(void) {
+#ifdef NDEBUG
+    __WFI(); /* Wait-For-Interrupt, low-power idle */
+#endif
+}
+/*..........................................................................*/
+void App_TaskCreateHook(OS_TCB *ptcb) { (void)ptcb; }
+void App_TaskDelHook    (OS_TCB *ptcb) { (void)ptcb; }
+void App_TaskReturnHook (OS_TCB *ptcb) { (void)ptcb; }
+void App_TaskStatHook   (void)         {}
+void App_TaskSwHook     (void)         {}
+void App_TCBInitHook    (OS_TCB *ptcb) { (void)ptcb; }
 
+/* BSP functions ==============================================================*/
 void BSP_init(void) {
-    /* enable clock for GPIOA */
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    /* NOTE: SystemInit() has already been called from the startup code,
+     * but SystemCoreClock needs to be updated */
+    SystemCoreClockUpdate();
 
-    /* configure PA5 (LD2) as output */
-    GPIOA->MODER &= ~GPIO_MODER_MODER5;
-    GPIOA->MODER |=  GPIO_MODER_MODER5_0;
+    /* enable clocks for GPIOA (LEDs) and GPIOC (user button B1) */
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOCEN;
 
-    /* configure PA6 (external blue LED) as output */
-    GPIOA->MODER &= ~GPIO_MODER_MODER6;
-    GPIOA->MODER |=  GPIO_MODER_MODER6_0;
+    /* configure PA5 (LD2, green) and PA6 (external blue LED) as outputs */
+    GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER6);
+    GPIOA->MODER |=  (GPIO_MODER_MODER5_0 | GPIO_MODER_MODER6_0);
 
-    /* enable clocks for GPIOC (user button B1 on PC13) and SYSCFG (EXTI routing) */
-    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
-    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-
-    /* configure PC13 as input (button pulls the line high when pressed) */
+    /* configure PC13 (B1) as input; B1 reads HIGH while pressed */
     GPIOC->MODER &= ~GPIO_MODER_MODER13;
-
-    /* route EXTI13 to GPIOC pin 13 */
-    SYSCFG->EXTICR[3] &= ~SYSCFG_EXTICR4_EXTI13;
-    SYSCFG->EXTICR[3] |=  SYSCFG_EXTICR4_EXTI13_PC;
-
-    /* EXTI13: trigger on the rising edge (button press), unmask the interrupt */
-    EXTI->RTSR |=  EXTI_RTSR_TR13;
-    EXTI->FTSR &= ~EXTI_FTSR_TR13;
-    EXTI->IMR  |=  EXTI_IMR_MR13;
-
-    /* enable EXTI15_10 in the NVIC at a QF-aware priority */
-    NVIC_SetPriority(EXTI15_10_IRQn, QF_AWARE_ISR_CMSIS_PRI);
-    NVIC_ClearPendingIRQ(EXTI15_10_IRQn);
-    NVIC_EnableIRQ(EXTI15_10_IRQn);
-
-    QXMutex_init(&Morse_mutex, 6U); /* priority ceiling 6 */
 }
+/*..........................................................................*/
+void BSP_start(void) {
+    /* set up the SysTick timer to fire at BSP_TICKS_PER_SEC rate */
+    SysTick_Config(SystemCoreClock / OS_TICKS_PER_SEC);
 
+    /* SysTick calls uC/OS-II API (OSIntEnter/OSTimeTick/OSIntExit), so it
+     * must run at a kernel-aware priority level (>= the BASEPRI boundary) */
+    NVIC_SetPriority(SysTick_IRQn, CPU_CFG_KA_IPL_BOUNDARY + 1U);
+}
+/*..........................................................................*/
 void BSP_ledGreenOn(void) {
     GPIOA->BSRR = GPIO_BSRR_BS5;
 }
-
+/*..........................................................................*/
 void BSP_ledGreenOff(void) {
     GPIOA->BSRR = GPIO_BSRR_BR5;
 }
-
-void BSP_ledGreenToggle(void) {
-    QF_CRIT_STAT;
-    QF_CRIT_ENTRY();
-    GPIOA->ODR ^= GPIO_ODR_OD5;
-    QF_CRIT_EXIT();
-}
-
+/*..........................................................................*/
 void BSP_ledBlueOn(void) {
     GPIOA->BSRR = GPIO_BSRR_BS6;
 }
-
+/*..........................................................................*/
 void BSP_ledBlueOff(void) {
     GPIOA->BSRR = GPIO_BSRR_BR6;
 }
-
-void BSP_sendMorseCode(uint32_t bitmask) {
-    uint32_t volatile delay_ctr;
-    enum { DOT_DELAY = 150 };
-
-    QXMutex_lock(&Morse_mutex, QXTHREAD_NO_TIMEOUT); /* timeout for waiting */
-
-    /* MSB first, one dot-length slot per bit: 1 = LED on, 0 = LED off;
-     * a run of 3 set bits reads as a dash, a lone set bit as a dot */
-    for (; bitmask != 0U; bitmask <<= 1) {
-        if ((bitmask & (1U << 31)) != 0U) {
-            BSP_ledBlueOn();
-        }
-        else {
-            BSP_ledBlueOff();
-        }
-        for (delay_ctr = DOT_DELAY; delay_ctr != 0U; --delay_ctr) {
-        }
-    }
-    BSP_ledBlueOff();
-    for (delay_ctr = 7*DOT_DELAY; delay_ctr != 0U; --delay_ctr) { /* word gap */
-    }
-
-    QXMutex_unlock(&Morse_mutex);
-}
-
-void QF_onStartup(void) {
-    /* configure SysTick */
-    SysTick->LOAD = (SystemCoreClock / BSP_TICKS_PER_SEC) - 1U;
-    SysTick->VAL  = 0U;
-    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk
-                  | SysTick_CTRL_TICKINT_Msk
-                  | SysTick_CTRL_ENABLE_Msk;
-
-    __enable_irq();
-}
-
-void QF_onCleanup(void) {
-}
-
-void QXK_onIdle(void) {
-    __WFI(); /* stop the CPU and wait for interrupt */
-}
-
+/*..........................................................................*/
 _Noreturn void assert_failed(char const *file, int line) {
     (void)file;
     (void)line;
     NVIC_SystemReset();
 }
-
-Q_NORETURN Q_onError(char const * const module, int_t const id) {
-    assert_failed(module, id);
+/*..........................................................................*/
+Q_NORETURN Q_onAssert(char const * const module, int_t const location) {
+    assert_failed(module, location);
 }

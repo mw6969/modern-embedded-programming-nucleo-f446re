@@ -2,7 +2,7 @@
 #include "stm32f446xx.h"
 
 /* CPU fault handlers -- override the weak defaults in startup_stm32f446retx.s */
-/* NMI_Handler is implemented for real in QPC/qxk_port.c (extended-thread return) */
+void NMI_Handler(void)        { assert_failed("NMI_Handler",        __LINE__); }
 void HardFault_Handler(void)  { assert_failed("HardFault_Handler",  __LINE__); }
 void MemManage_Handler(void)  { assert_failed("MemManage_Handler",  __LINE__); }
 void BusFault_Handler(void)   { assert_failed("BusFault_Handler",   __LINE__); }
@@ -16,7 +16,7 @@ void Unused_Handler(void) {
 #define UNUSED_IRQ(name) void name(void) { Unused_Handler(); }
 
 /* Cortex-M system handlers not yet used by this project
- * (PendSV_Handler is implemented for real in QPC/qxk_port.c) */
+ * (SysTick_Handler and PendSV_Handler are implemented for real in uCOS2/) */
 UNUSED_IRQ(SVC_Handler)
 UNUSED_IRQ(DebugMon_Handler)
 
@@ -61,6 +61,7 @@ UNUSED_IRQ(SPI2_IRQHandler)                /* SPI2 global interrupt */
 UNUSED_IRQ(USART1_IRQHandler)              /* USART1 global interrupt */
 UNUSED_IRQ(USART2_IRQHandler)              /* USART2 global interrupt */
 UNUSED_IRQ(USART3_IRQHandler)              /* USART3 global interrupt */
+UNUSED_IRQ(EXTI15_10_IRQHandler)           /* EXTI Line[15:10] interrupts (B1 is now polled from App_TimeTickHook) */
 UNUSED_IRQ(RTC_Alarm_IRQHandler)           /* RTC Alarms (A and B) through EXTI line interrupt */
 UNUSED_IRQ(OTG_FS_WKUP_IRQHandler)         /* USB On-The-Go FS Wakeup through EXTI line interrupt */
 UNUSED_IRQ(TIM8_BRK_TIM12_IRQHandler)      /* TIM8 Break interrupt and TIM12 global interrupt */
