@@ -2,8 +2,7 @@
 
 Bare-metal on the STM32 Nucleo-F446RE. Started as a simple LED blink, grew
 into a hand-written minimal preemptive kernel (`MyROS`), then QP/C's **QXK**
-dual-mode kernel, and now runs Silicon Labs'
-[uC/OS-II](https://www.state-machine.com/products/ucos-ii) — a real,
+dual-mode kernel, and now runs Silicon Labs' uC/OS-II — a real,
 widely-used RTOS, brought in as a deliberate step back to "superloop +
 classic RTOS" before revisiting the same problem with an event-driven
 Active Object design. No HAL, no CubeMX-generated drivers — registers are
