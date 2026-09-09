@@ -1,4 +1,4 @@
-# LED Blink → uC/OS-II RTOS → uC/AO Active Objects
+# LED Blink
 
 Bare-metal on the STM32 Nucleo-F446RE. Started as a simple LED blink, grew
 into a hand-written minimal preemptive kernel (`MyROS`), then QP/C's **QXK**
