@@ -1,7 +1,7 @@
 #ifndef BSP_H_
 #define BSP_H_
 
-#include "ucos_ii.h" /* uC/OS-II API, port and compile-time configuration */
+#include "uc_ao.h" /* UC/AO API */
 
 /* systems clock tick [Hz] */
 #define BSP_TICKS_PER_SEC OS_TICKS_PER_SEC
@@ -27,8 +27,13 @@ void BSP_ledBlueOff(void);
 /* single "damage control" entry point for every fault and currently-unhandled interrupt */
 _Noreturn void assert_failed(char const *file, int line);
 
-/* global RTOS objects, signaled from App_TimeTickHook()'s button debouncing */
-extern OS_EVENT *BSP_semaPress;   /* user button (B1/PC13) was just pressed */
-extern OS_EVENT *BSP_semaRelease; /* user button (B1/PC13) was just released */
+enum EventSignals {
+	BUTTON_PRESSED_SIG = USER_SIG,
+	BUTTON_RELEASED_SIG,
+	TIMEOUT_SIG,
+};
+
+/* Active objects */
+extern Active *AO_BlinkyButton;
 
 #endif /* BSP_H_ */

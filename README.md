@@ -1,43 +1,40 @@
-# LED Blink → uC/OS-II RTOS
+# LED Blink → uC/OS-II RTOS → uC/AO Active Objects
 
 Bare-metal on the STM32 Nucleo-F446RE. Started as a simple LED blink, grew
 into a hand-written minimal preemptive kernel (`MyROS`), then QP/C's **QXK**
-dual-mode kernel, and now runs Silicon Labs' uC/OS-II — a real,
-widely-used RTOS, brought in as a deliberate step back to "superloop +
-classic RTOS" before revisiting the same problem with an event-driven
-Active Object design. No HAL, no CubeMX-generated drivers — registers are
-hand-rolled.
+dual-mode kernel, then a step back to "superloop + classic RTOS" on Silicon
+Labs' uC/OS-II, and now uses **uC/AO** — Quantum Leaps' minimal Active
+Object layer on top of uC/OS-II — to express the same blinky/button problem
+as a single event-driven active object instead of two raw tasks sharing
+state through a semaphore/mutex pair. No HAL, no CubeMX-generated drivers —
+registers are hand-rolled.
 
 Progression is tracked in the commit history — see `git log` for this folder.
 
 ## What it does
 
-Two uC/OS-II tasks:
+One active object, `BlinkyButton`, reacting to two kinds of events:
 
-| Task | Priority | LED | Behavior |
-|---|---|---|---|
-| `main_blinky` | `OS_LOWEST_PRIO - 4` | onboard LD2 (PA5) | blinks continuously; on-time is a shared `shared_blink_time` variable (25% duty cycle) |
-| `main_button` | `OS_LOWEST_PRIO - 3` | external LED (PA6 / D12, breadboard + resistor) | lights up while the user button (B1) is held, halves `shared_blink_time` on each press |
+| Event | Source | Effect |
+|---|---|---|
+| `TIMEOUT_SIG` | `TimeEvent` armed by the AO itself | toggles the onboard green LED (LD2/PA5); on-time is `blink_time` ticks, off-time is `blink_time * 3` (25% duty cycle) |
+| `BUTTON_PRESSED_SIG` / `BUTTON_RELEASED_SIG` | posted from `App_TimeTickHook()` | lights the external blue LED (PA6/D12) while B1 is held; on press, halves `blink_time` (wraps back to `INITIAL_BLINK_TIME` once it underflows to 0) |
 
-Unlike the earlier QXK version, the button (B1 / PC13) is **not** wired to an
-EXTI interrupt — it's debounced by polling inside `App_TimeTickHook()`
-(called every SysTick tick), using the classic Ganssle/Barr debounce
-algorithm. Debounced press/release edges post two binary semaphores
-(`BSP_semaPress` / `BSP_semaRelease`) that `main_button` blocks on.
-`shared_blink_time` is protected by a uC/OS-II mutex
-(`shared_blink_time_mutex`) since both tasks touch it.
+The button (B1 / PC13) is **not** wired to an EXTI interrupt — it's
+debounced by polling inside `App_TimeTickHook()` (called every SysTick
+tick), using the classic Ganssle/Barr debounce algorithm. Debounced
+press/release edges are posted straight into the AO's own event queue via
+`Active_post()`, replacing the old binary semaphores. `App_TimeTickHook()`
+also drives `TimeEvent_tick()` every tick, which is what actually expires
+the AO's armed `TimeEvent` and posts `TIMEOUT_SIG` — since there's now only
+one task, `blink_time` needs no mutex; it's private state read and written
+only from inside `BlinkyButton_dispatch()`.
 
 Also includes startup-code hardening: CPU fault handlers (NMI, HardFault,
 MemManage, BusFault, UsageFault) and every unused peripheral IRQ are routed
 to a controlled `NVIC_SystemReset()` instead of silently hanging.
 `SysTick_Handler` and `PendSV_Handler` are owned by uC/OS-II's ARMv7-M/GNU
 port, not by application code.
-
-`uc_ao.c`/`uc_ao.h` (Quantum Leaps' minimal **uC/AO** — Active Object pattern
-on top of uC/OS-II: `Active`/`TimeEvent` base "classes", an event queue per
-task instead of raw semaphores/mutexes) are in the tree and compile cleanly,
-but nothing calls into them yet — staged for the next step of this lesson,
-where the blinky/button logic gets refactored onto Active Objects.
 
 ## Hardware & Tools
 
@@ -59,15 +56,15 @@ led-blink/
 ├── Inc/
 │   ├── bsp.h                          # board support package interface
 │   ├── app_cfg.h / os_cfg.h           # this project's uC/OS-II configuration
-│   ├── uc_ao.h                        # uC/AO (Active Object pattern on uC/OS-II) — not wired in yet
+│   ├── uc_ao.h                        # uC/AO — Active/TimeEvent base "classes" on top of uC/OS-II
 │   ├── uCOS2/                         # uC/OS-II headers only (os.h, ucos_ii.h, os_cpu.h, os_trace.h)
 │   ├── Vendor/                        # qassert.h — not written by hand
 │   └── CMSIS/                         # ARM/ST headers — not written by hand
 ├── Src/
-│   ├── bsp.c                          # GPIO, uC/OS-II app hooks (incl. button debounce), SysTick config
-│   ├── main.c                         # creates both tasks + semaphores + mutex, starts uC/OS-II
+│   ├── bsp.c                          # GPIO, uC/OS-II app hooks (button debounce + TimeEvent_tick), SysTick config
+│   ├── main.c                         # BlinkyButton active object + dispatch, starts uC/OS-II
 │   ├── stm32f4xx_it.c                 # fault + unused-IRQ handlers (controlled reset)
-│   ├── uc_ao.c                        # uC/AO implementation — not wired in yet
+│   ├── uc_ao.c                        # uC/AO implementation (Active, TimeEvent)
 │   └── Vendor/                        # newlib stubs + CMSIS system source — not written by hand
 ├── uCOS2/                             # uC/OS-II kernel + ARMv7-M/GNU port, one .c per translation
 │                                       # unit (os_core.c, os_task.c, ... + os_cpu_c.c/os_cpu_a.s/os_dbg.c),

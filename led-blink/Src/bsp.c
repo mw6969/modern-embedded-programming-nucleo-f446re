@@ -1,7 +1,8 @@
-#include "ucos_ii.h" /* uC/OS-II API, port and compile-time configuration */
 #include "qassert.h" /* embedded-system-friendly assertions */
 #include "bsp.h"     /* Board Support Package */
 #include "stm32f446xx.h"
+
+#define BTN_B1 (1U << 13)
 
 /* uCOS-II application hooks =================================================*/
 void App_TimeTickHook(void) {
@@ -13,7 +14,7 @@ void App_TimeTickHook(void) {
     uint32_t current;
     uint32_t tmp;
 
-    enum { BTN_B1 = (1U << 13) }; /* user button B1 on PC13 */
+    TimeEvent_tick(); /* process all uC/AO time events */
 
     /* Perform the debouncing of the B1 button. The algorithm for debouncing
      * adapted from the book "Embedded Systems Dictionary" by Jack Ganssle
@@ -31,10 +32,14 @@ void App_TimeTickHook(void) {
     tmp ^= buttons.depressed;     /* changed debounced depressed */
     if ((tmp & BTN_B1) != 0U) {  /* debounced B1 state changed? */
         if ((buttons.depressed & BTN_B1) != 0U) { /* is B1 depressed? */
-            OSSemPost(BSP_semaPress); /* post the "button-pressed" semaphore */
+        	/* post the "button-pressed" event from ISR */
+            static Event const buttonPressedEvt = {BUTTON_PRESSED_SIG};
+            Active_post(AO_BlinkyButton, &buttonPressedEvt);
         }
         else { /* the button is released */
-            OSSemPost(BSP_semaRelease); /* post the "button-release" semaphore */
+        	/* post the "button-released" event from ISR */
+            static Event const buttonReleasedEvt = {BUTTON_RELEASED_SIG};
+            Active_post(AO_BlinkyButton, &buttonReleasedEvt);
         }
     }
 }

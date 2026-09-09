@@ -1,119 +1,78 @@
-/* Blinky/Button with uC/OS-II RTOS */
-#include "ucos_ii.h" /* uC/OS-II API, port and compile-time configuration */
-#include "qassert.h" /* embedded-system-friendly assertions */
+#include <stdbool.h> /* bool, true, false */
+#include "uc_ao.h"   /* UC/AO API */
 #include "bsp.h"     /* Board Support Package */
 
-Q_DEFINE_THIS_MODULE("main") /* this module name for Q_ASSERT() */
+/* the BlinkyButton AO */
+typedef struct {
+	Active super;  /* inherit Active base class  */
+	TimeEvent te;
+	bool isLedOn;
+	uint32_t blink_time;
+} BlinkyButton;
 
-/* The Blinky task ============================================================*/
-OS_STK stack_blinky[APP_CFG_BLINKY_TASK_STK_SIZE]; /* task stack */
+static void BlinkyButton_dispatch(BlinkyButton * const me, Event const * const e) {
+	switch (e->sig) {
+	    case INIT_SIG:
+	    	BSP_ledBlueOff();
+	    case TIMEOUT_SIG: {
+	        if (me->isLedOn == false) {
+	        	BSP_ledGreenOn();
+	        	me->isLedOn = true;
+	        	TimeEvent_arm(&me->te, me->blink_time, 0U);
+	        } else {
+	        	BSP_ledGreenOff();
+	        	me->isLedOn = false;
+	        	TimeEvent_arm(&me->te, me->blink_time * 3U, 0U);
+	        }
+	        break;
+	    }
+	    case BUTTON_PRESSED_SIG: {
+		    BSP_ledBlueOn();
 
-enum { INITIAL_BLINK_TIME = (OS_TICKS_PER_SEC / 4) };
-
-/* data shared between tasks */
-INT32U volatile shared_blink_time = INITIAL_BLINK_TIME;
-OS_EVENT *shared_blink_time_mutex;
-
-void main_blinky(void *pdata) { /* task function */
-    (void)pdata; /* unused parameter(s) */
-
-    while (1) { /* endless "superloop" */
-        INT8U err;
-        INT32U bt; /* local copy of shared_blink_time */
-
-        OSMutexPend(shared_blink_time_mutex, 0, &err); /* mutual exclusion */
-        Q_ASSERT(err == 0);
-        bt = shared_blink_time;
-        OSMutexPost(shared_blink_time_mutex); /* mutual exclusion */
-
-        BSP_ledGreenOn();
-        OSTimeDly(bt);       /* BLOCKING! */
-        BSP_ledGreenOff();
-        OSTimeDly(bt * 3U);  /* BLOCKING! */
+		    me->blink_time >>= 1; /* shorten the blink time by factor of 2 */
+		    if (me->blink_time == 0U) {
+		    	me->blink_time = INITIAL_BLINK_TIME;
+		    }
+		    break;
+	    }
+	    case BUTTON_RELEASED_SIG: {
+		    BSP_ledBlueOff();
+		    break;
+	    }
+	    default:
+		    break;
     }
 }
 
-/* The Button task =============================================================*/
-OS_STK stack_button[APP_CFG_BUTTON_TASK_STK_SIZE]; /* task stack */
-
-void main_button(void *pdata) { /* task function */
-    (void)pdata; /* unused parameter(s) */
-
-    while (1) { /* endless "superloop" */
-        INT8U err; /* uC/OS-II error status */
-
-        /* wait on the button-press semaphore (BLOCK indefinitely) */
-        OSSemPend(BSP_semaPress, 0, &err); /* BLOCKING! */
-        Q_ASSERT(err == 0);
-        BSP_ledBlueOn();
-
-        /* update the blink time for the 'blinky' task */
-        OSMutexPend(shared_blink_time_mutex, 0, &err); /* mutual exclusion */
-        Q_ASSERT(err == 0);
-        shared_blink_time >>= 1; /* shorten the blink time by factor of 2 */
-        if (shared_blink_time == 0U) {
-            shared_blink_time = INITIAL_BLINK_TIME;
-        }
-        OSMutexPost(shared_blink_time_mutex); /* mutual exclusion */
-
-        /* wait on the button-release semaphore (BLOCK indefinitely) */
-        OSSemPend(BSP_semaRelease, 0, &err); /* BLOCKING! */
-        Q_ASSERT(err == 0);
-        BSP_ledBlueOff();
-    }
+void BlinkyButton_ctor(BlinkyButton * const me) {
+	Active_ctor(&me->super, (DispatchHandler)&BlinkyButton_dispatch);
+	TimeEvent_ctor(&me->te, TIMEOUT_SIG, &me->super);
+	me->isLedOn = false;
+	me->blink_time = INITIAL_BLINK_TIME;
 }
 
-OS_EVENT *BSP_semaPress;   /* global semaphore handle */
-OS_EVENT *BSP_semaRelease; /* global semaphore handle */
+OS_STK stack_blinkyButton[APP_CFG_TASK_STK_SIZE]; /* task stack */
+static Event *blinkyButton_queue[10];
+static BlinkyButton blinkyButton;
+Active *AO_BlinkyButton = &blinkyButton.super;
 
-/* the main function ===========================================================*/
+/* the main function */
 int main(void) {
-    INT8U err;
-
     BSP_init(); /* initialize the BSP */
     OSInit();   /* initialize uC/OS-II */
 
-    /* initialize the RTOS objects before using them */
-    BSP_semaPress   = OSSemCreate(0);
-    Q_ASSERT(BSP_semaPress != (OS_EVENT *)0);
-    BSP_semaRelease = OSSemCreate(0);
-    Q_ASSERT(BSP_semaRelease != (OS_EVENT *)0);
-    shared_blink_time_mutex = OSMutexCreate(OS_LOWEST_PRIO - 5U, &err);
-    Q_ASSERT(err == 0);
-
-    /* create uC/OS-II task, see NOTE1 */
-    err = OSTaskCreateExt(&main_blinky, /* the task function */
-          (void *)0,      /* the 'pdata' parameter (not used) */
-          &stack_blinky[APP_CFG_BLINKY_TASK_STK_SIZE - 1U], /* ptos */
-          APP_CFG_BLINKY_TASK_PRIO, /* uC/OS-II task priority */
-          APP_CFG_BLINKY_TASK_PRIO, /* unique priority is used as the task ID */
-          stack_blinky,   /* pbos */
-          APP_CFG_BLINKY_TASK_STK_SIZE, /* stack depth */
-          (void *)0,      /* pext */
-          (INT16U)0);     /* task options */
-    Q_ASSERT(err == 0);
-
-    /* create uC/OS-II task, see NOTE1 */
-    err = OSTaskCreateExt(&main_button, /* the task function */
-          (void *)0,      /* the 'pdata' parameter (not used) */
-          &stack_button[APP_CFG_BUTTON_TASK_STK_SIZE - 1U], /* ptos */
-          APP_CFG_BUTTON_TASK_PRIO, /* uC/OS-II task priority */
-          APP_CFG_BUTTON_TASK_PRIO, /* unique priority is used as the task ID */
-          stack_button,   /* pbos */
-          APP_CFG_BUTTON_TASK_STK_SIZE, /* stack depth */
-          (void *)0,      /* pext */
-          (INT16U)0);     /* task options */
-    Q_ASSERT(err == 0);
+    /* create AO and start it */
+    BlinkyButton_ctor(&blinkyButton);
+    Active_start(AO_BlinkyButton,
+    		     2U,
+				 blinkyButton_queue,
+				 sizeof(blinkyButton_queue)/sizeof(blinkyButton_queue[0]),
+				 stack_blinkyButton,
+				 sizeof(stack_blinkyButton),
+				 0U);
 
     BSP_start(); /* configure and start the interrupts */
 
     OSStart(); /* start the uC/OS-II scheduler... */
     return 0; /* NOTE: the scheduler does NOT return */
 }
-
-/*******************************************************************************
-* NOTE1:
-* The call to uC/OS-II API OSTaskCreateExt() assumes that the pointer to the
-* top-of-stack (ptos) is at the end of the provided stack memory. This is
-* correct only for CPUs with downward-growing stack (true for ARM Cortex-M).
-*/
