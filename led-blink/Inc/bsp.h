@@ -34,6 +34,6 @@ enum EventSignals {
 };
 
 /* Active objects */
-extern Active *AO_BlinkyButton;
+extern Active *AO_TimeBomb;
 
 #endif /* BSP_H_ */

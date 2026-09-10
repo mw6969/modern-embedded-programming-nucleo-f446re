@@ -19,6 +19,4 @@
 #define CPU_CFG_NVIC_PRIO_BITS     4U
 #define CPU_CFG_KA_IPL_BOUNDARY    8U
 
-#define INITIAL_BLINK_TIME (OS_TICKS_PER_SEC / 4)
-
 #endif /* APP_CFG_H */

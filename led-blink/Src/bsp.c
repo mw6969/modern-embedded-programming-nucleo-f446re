@@ -34,12 +34,12 @@ void App_TimeTickHook(void) {
         if ((buttons.depressed & BTN_B1) != 0U) { /* is B1 depressed? */
         	/* post the "button-pressed" event from ISR */
             static Event const buttonPressedEvt = {BUTTON_PRESSED_SIG};
-            Active_post(AO_BlinkyButton, &buttonPressedEvt);
+            Active_post(AO_TimeBomb, &buttonPressedEvt);
         }
         else { /* the button is released */
         	/* post the "button-released" event from ISR */
             static Event const buttonReleasedEvt = {BUTTON_RELEASED_SIG};
-            Active_post(AO_BlinkyButton, &buttonReleasedEvt);
+            Active_post(AO_TimeBomb, &buttonReleasedEvt);
         }
     }
 }

@@ -5,71 +5,71 @@
 
 Q_DEFINE_THIS_MODULE("main") /* this module name for Q_ASSERT() */
 
-/* the BlinkyButton AO */
+/* the TimeBomb AO */
 typedef struct {
 	Active super;  /* inherit Active base class  */
-	enum { OFF_STATE, ON_STATE } state;
+	enum {
+		WAIT4BUTTON_STATE,
+		BLINK_STATE,
+		PAUSE_STATE,
+		BOOM_STATE
+	} state;
 	TimeEvent te;
-	uint32_t blink_time;
-} BlinkyButton;
+	uint32_t blink_ctr;
+} TimeBomb;
 
-static void BlinkyButton_dispatch(BlinkyButton * const me, Event const * const e) {
+static void TimeBomb_dispatch(TimeBomb * const me, Event const * const e) {
 	if (e->sig == INIT_SIG) {
-		BSP_ledBlueOff();
-		TimeEvent_arm(&me->te, me->blink_time * 3U, 0U);
-		me->state = OFF_STATE;
-		return;
+		BSP_ledGreenOn();
+		me->state = WAIT4BUTTON_STATE;
 	}
 
 	switch (me->state) {
-	    case OFF_STATE: {
+	    case WAIT4BUTTON_STATE: {
 	    	switch (e->sig) {
-				case TIMEOUT_SIG: {
-					BSP_ledGreenOn();
-					TimeEvent_arm(&me->te, me->blink_time, 0U);
-					me->state = ON_STATE;
-					break;
-				}
 				case BUTTON_PRESSED_SIG: {
+					BSP_ledGreenOff();
 					BSP_ledBlueOn();
-
-					me->blink_time >>= 1; /* shorten the blink time by factor of 2 */
-					if (me->blink_time == 0U) {
-						me->blink_time = INITIAL_BLINK_TIME;
-					}
-					break;
-				}
-				case BUTTON_RELEASED_SIG: {
-					BSP_ledBlueOff();
+					TimeEvent_arm(&me->te, OS_TICKS_PER_SEC/2, 0U);
+					me->blink_ctr = 3U;
+					me->state = BLINK_STATE;
 					break;
 				}
 	    	}
 	    	break;
 	    }
-	    case ON_STATE: {
+	    case BLINK_STATE: {
 	    	switch (e->sig) {
 				case TIMEOUT_SIG: {
-					BSP_ledGreenOff();
-					TimeEvent_arm(&me->te, me->blink_time * 3U, 0U);
-					me->state = OFF_STATE;
-					break;
-				}
-				case BUTTON_PRESSED_SIG: {
-					BSP_ledBlueOn();
-
-					me->blink_time >>= 1; /* shorten the blink time by factor of 2 */
-					if (me->blink_time == 0U) {
-						me->blink_time = INITIAL_BLINK_TIME;
-					}
-					break;
-				}
-				case BUTTON_RELEASED_SIG: {
 					BSP_ledBlueOff();
+					TimeEvent_arm(&me->te, OS_TICKS_PER_SEC/2, 0U);
+					me->state = PAUSE_STATE;
 					break;
 				}
 	    	}
 			break;
 		}
+	    case PAUSE_STATE: {
+	    	switch (e->sig) {
+				case TIMEOUT_SIG: {
+					--me->blink_ctr;
+					if (me->blink_ctr > 0U) {
+						BSP_ledBlueOn();
+						TimeEvent_arm(&me->te, OS_TICKS_PER_SEC/2, 0U);
+						me->state = BLINK_STATE;
+					} else {
+						BSP_ledBlueOn();
+						BSP_ledGreenOn();
+						me->state = BOOM_STATE;
+					}
+					break;
+				}
+	    	}
+			break;
+		}
+	    case BOOM_STATE: {
+	    	break;
+	    }
 	    default: {
 	    	Q_ASSERT(0); /* invalid state */
 			break;
@@ -77,16 +77,15 @@ static void BlinkyButton_dispatch(BlinkyButton * const me, Event const * const e
 	}
 }
 
-void BlinkyButton_ctor(BlinkyButton * const me) {
-	Active_ctor(&me->super, (DispatchHandler)&BlinkyButton_dispatch);
+void TimeBomb_ctor(TimeBomb * const me) {
+	Active_ctor(&me->super, (DispatchHandler)&TimeBomb_dispatch);
 	TimeEvent_ctor(&me->te, TIMEOUT_SIG, &me->super);
-	me->blink_time = INITIAL_BLINK_TIME;
 }
 
-OS_STK stack_blinkyButton[APP_CFG_TASK_STK_SIZE]; /* task stack */
-static Event *blinkyButton_queue[10];
-static BlinkyButton blinkyButton;
-Active *AO_BlinkyButton = &blinkyButton.super;
+OS_STK stack_timeBomb[APP_CFG_TASK_STK_SIZE]; /* task stack */
+static Event *timeBomb_queue[10];
+static TimeBomb timeBomb;
+Active *AO_TimeBomb = &timeBomb.super;
 
 /* the main function */
 int main(void) {
@@ -94,13 +93,13 @@ int main(void) {
     OSInit();   /* initialize uC/OS-II */
 
     /* create AO and start it */
-    BlinkyButton_ctor(&blinkyButton);
-    Active_start(AO_BlinkyButton,
+    TimeBomb_ctor(&timeBomb);
+    Active_start(AO_TimeBomb,
     		     2U,
-				 blinkyButton_queue,
-				 sizeof(blinkyButton_queue)/sizeof(blinkyButton_queue[0]),
-				 stack_blinkyButton,
-				 sizeof(stack_blinkyButton),
+				 timeBomb_queue,
+				 sizeof(timeBomb_queue)/sizeof(timeBomb_queue[0]),
+				 stack_timeBomb,
+				 sizeof(stack_timeBomb),
 				 0U);
 
     BSP_start(); /* configure and start the interrupts */

@@ -13,34 +13,47 @@ Progression is tracked in the commit history — see `git log` for this folder.
 
 ## What it does
 
-One active object, `BlinkyButton`, reacting to two kinds of events:
+One active object, `TimeBomb`, implementing the classic "arm, blink,
+explode" state machine used to teach **guard conditions**:
 
-| Event | Source | Effect |
-|---|---|---|
-| `TIMEOUT_SIG` | `TimeEvent` armed by the AO itself | toggles the onboard green LED (LD2/PA5); on-time is `blink_time` ticks, off-time is `blink_time * 3` (25% duty cycle) |
-| `BUTTON_PRESSED_SIG` / `BUTTON_RELEASED_SIG` | posted from `App_TimeTickHook()` | lights the external blue LED (PA6/D12) while B1 is held; on press, halves `blink_time` (wraps back to `INITIAL_BLINK_TIME` once it underflows to 0) |
+| State | Meaning |
+|---|---|
+| `WAIT4BUTTON_STATE` | idle, green LED on, waiting for B1 |
+| `BLINK_STATE` | blue LED on for 500 ms |
+| `PAUSE_STATE` | blue LED off for 500 ms |
+| `BOOM_STATE` | terminal — both LEDs solid on |
 
-The button (B1 / PC13) is **not** wired to an EXTI interrupt — it's
+`INIT_SIG` turns the green LED on and enters `WAIT4BUTTON_STATE`.
+`BUTTON_PRESSED_SIG` (posted from `App_TimeTickHook()`'s debounce, same as
+before) "arms the bomb": green off, blue on, a 3-blink countdown starts,
+and the machine moves to `BLINK_STATE`. From there, `TIMEOUT_SIG` (from a
+self-armed `TimeEvent`) alternates `BLINK_STATE` ↔ `PAUSE_STATE` every
+500 ms, toggling the blue LED each time.
+
+The interesting transition is `PAUSE_STATE`'s `TIMEOUT_SIG` handler: it
+decrements `blink_ctr` and branches on a **guard condition**,
+`[blink_ctr > 0]`, to pick between two different targets for the *same*
+event — loop back to `BLINK_STATE` for another blink, or fall through to
+`BOOM_STATE` (both LEDs solid) once the counter reaches zero. This is the
+textbook UML statechart notation `event [guard] / action` for expressing
+multiple outgoing transitions under one trigger. `BOOM_STATE` itself
+handles no events — it's a dead end, matching the "the bomb went off"
+semantics.
+
+The button (B1 / PC13) is still **not** wired to an EXTI interrupt — it's
 debounced by polling inside `App_TimeTickHook()` (called every SysTick
-tick), using the classic Ganssle/Barr debounce algorithm. Debounced
-press/release edges are posted straight into the AO's own event queue via
-`Active_post()`, replacing the old binary semaphores. `App_TimeTickHook()`
-also drives `TimeEvent_tick()` every tick, which is what actually expires
-the AO's armed `TimeEvent` and posts `TIMEOUT_SIG` — since there's now only
-one task, `blink_time` needs no mutex; it's private state read and written
-only from inside `BlinkyButton_dispatch()`.
+tick), using the classic Ganssle/Barr debounce algorithm, and posted into
+the AO's queue via `Active_post()`. `App_TimeTickHook()` also drives
+`TimeEvent_tick()` every tick, which expires the AO's armed `TimeEvent`
+and posts `TIMEOUT_SIG`. `BUTTON_RELEASED_SIG` is still posted but not
+consumed by `TimeBomb_dispatch()` — this example doesn't need it.
 
-`BlinkyButton_dispatch()` is now an explicit finite state machine: a
-`state` field (`OFF_STATE` / `ON_STATE`) replaces the old implicit
-`isLedOn` boolean, and events are handled by a `switch (me->state)`
-outer switch with a `switch (e->sig)` inner switch per state, instead of
-one flat switch over the signal. `INIT_SIG` is handled once up front to
-set the initial state and arm the first `TimeEvent`, rather than
-deliberately falling through into the `TIMEOUT_SIG` case as before. An
-unreachable `default` state case calls `Q_ASSERT(0)` as a safety net.
-Button handling is still duplicated between the two states — this is a
-flat two-state machine, not yet the hierarchical state pattern QP/C
-supports.
+`TimeBomb_dispatch()` keeps the explicit-state-machine shape introduced in
+the previous lesson: an outer `switch (me->state)` with an inner
+`switch (e->sig)` per state, plus an unreachable `default` state case
+guarded by `Q_ASSERT(0)`. `INIT_SIG` is now handled by falling into the
+outer switch (rather than an early `return`) since `WAIT4BUTTON_STATE`'s
+inner switch has no `INIT_SIG` case to accidentally match.
 
 Also includes startup-code hardening: CPU fault handlers (NMI, HardFault,
 MemManage, BusFault, UsageFault) and every unused peripheral IRQ are routed
@@ -74,7 +87,7 @@ led-blink/
 │   └── CMSIS/                         # ARM/ST headers — not written by hand
 ├── Src/
 │   ├── bsp.c                          # GPIO, uC/OS-II app hooks (button debounce + TimeEvent_tick), SysTick config
-│   ├── main.c                         # BlinkyButton active object + dispatch, starts uC/OS-II
+│   ├── main.c                         # TimeBomb active object + dispatch, starts uC/OS-II
 │   ├── stm32f4xx_it.c                 # fault + unused-IRQ handlers (controlled reset)
 │   ├── uc_ao.c                        # uC/AO implementation (Active, TimeEvent)
 │   └── Vendor/                        # newlib stubs + CMSIS system source — not written by hand
