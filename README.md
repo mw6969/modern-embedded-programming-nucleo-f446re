@@ -30,6 +30,18 @@ the AO's armed `TimeEvent` and posts `TIMEOUT_SIG` — since there's now only
 one task, `blink_time` needs no mutex; it's private state read and written
 only from inside `BlinkyButton_dispatch()`.
 
+`BlinkyButton_dispatch()` is now an explicit finite state machine: a
+`state` field (`OFF_STATE` / `ON_STATE`) replaces the old implicit
+`isLedOn` boolean, and events are handled by a `switch (me->state)`
+outer switch with a `switch (e->sig)` inner switch per state, instead of
+one flat switch over the signal. `INIT_SIG` is handled once up front to
+set the initial state and arm the first `TimeEvent`, rather than
+deliberately falling through into the `TIMEOUT_SIG` case as before. An
+unreachable `default` state case calls `Q_ASSERT(0)` as a safety net.
+Button handling is still duplicated between the two states — this is a
+flat two-state machine, not yet the hierarchical state pattern QP/C
+supports.
+
 Also includes startup-code hardening: CPU fault handlers (NMI, HardFault,
 MemManage, BusFault, UsageFault) and every unused peripheral IRQ are routed
 to a controlled `NVIC_SystemReset()` instead of silently hanging.
