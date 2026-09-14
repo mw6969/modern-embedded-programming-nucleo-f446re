@@ -43,23 +43,39 @@ typedef struct {
 } Event;
 
 /*---------------------------------------------------------------------------*/
+/* Finite State Machine facilities... */
+typedef struct Fsm Fsm; /* forward declaration */
+
+typedef enum { TRAN_STATUS, HANDLED_STATUS, IGNORED_STATUS, INIT_STATUS } State;
+
+typedef State (*StateHandler)(Fsm * const me, Event const * const e);
+
+#define TRAN(target_) (((Fsm *)me)->state = (StateHandler)(target_), TRAN_STATUS)
+
+struct Fsm {
+    StateHandler state; /* the "state variable" */
+};
+
+void Fsm_ctor(Fsm * const me, StateHandler initial);
+void Fsm_init(Fsm * const me, Event const * const e);
+void Fsm_dispatch(Fsm * const me, Event const * const e);
+
+/*---------------------------------------------------------------------------*/
 /* Actvie Object facilities... */
 
 typedef struct Active Active; /* forward declaration */
 
-typedef void (*DispatchHandler)(Active * const me, Event const * const e);
-
 /* Active Object base class */
 struct Active {
+	Fsm super;        /* inherit Fsm */
+
     INT8U thread;     /* private thread (the unique uC/OS-II task priority) */
     OS_EVENT *queue;  /* private message queue */
-
-    DispatchHandler dispatch; /* pointer to the dispatch() function */
 
     /* active object data added in subclasses of Active */
 };
 
-void Active_ctor(Active * const me, DispatchHandler dispatch);
+void Active_ctor(Active * const me, StateHandler initial);
 void Active_start(Active * const me,
                   uint8_t prio,       /* priority (1-based) */
                   Event **queueSto,

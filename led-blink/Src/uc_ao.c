@@ -21,9 +21,37 @@
 
 Q_DEFINE_THIS_MODULE("uc_ao") /* this module name for Q_ASSERT() */
 
+/*---------------------------------------------------------------------------*/
+/* Finite State Machine facilities... */
+static Event const entryEvt = { ENTRY_SIG };
+static Event const exitEvt  = { EXIT_SIG };
+
+void Fsm_ctor(Fsm * const me, StateHandler initial) {
+    me->state = initial;
+}
+
+void Fsm_init(Fsm * const me, Event const * const e) {
+    Q_ASSERT(me->state != (StateHandler)0);
+    (*me->state)(me, e);
+    (*me->state)(me, &entryEvt);
+}
+
+void Fsm_dispatch(Fsm * const me, Event const * const e) {
+    State status;
+    StateHandler prev_state = me->state; /* save for later */
+
+    Q_ASSERT(me->state != (StateHandler)0);
+    status = (*me->state)(me, e);
+
+    if (status == TRAN_STATUS) { /* transition taken? */
+        (*prev_state)(me, &exitEvt);
+        (*me->state)(me, &entryEvt);
+    }
+}
+
 /*..........................................................................*/
-void Active_ctor(Active * const me, DispatchHandler dispatch) {
-    me->dispatch = dispatch; /* attach the dispatch handler for the "me" AO */
+void Active_ctor(Active * const me, StateHandler initial) {
+	Fsm_ctor(&me->super, initial);
 }
 
 /*..........................................................................*/
@@ -32,8 +60,7 @@ static void Active_eventLoop(void *pdata) {
     Active *me = (Active *)pdata; /* the AO instance "me" */
 
     /* initialize the AO */
-    static Event const initEvt = { INIT_SIG };
-    (*me->dispatch)(me, &initEvt);
+    Fsm_init(&me->super, (Event *)0);
 
     /* event loop ("message pump") */
     while (1) {
@@ -45,7 +72,7 @@ static void Active_eventLoop(void *pdata) {
         Q_ASSERT(err == 0U);
 
         /* dispatch event to the active object 'me' */
-        (*me->dispatch)(me, e); /* NO BLOCKING! */
+        Fsm_dispatch(&me->super, e); /* NO BLOCKING! */
     }
 }
 
