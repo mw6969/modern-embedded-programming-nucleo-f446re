@@ -29,6 +29,7 @@ the target function. This Fsm plumbing (`Fsm_ctor()`/`Fsm_init()`/
 | `TimeBomb_blink` | blue LED on (entry) for 500 ms |
 | `TimeBomb_pause` | blue LED off (`blink`'s exit) for 500 ms |
 | `TimeBomb_boom` | terminal — both LEDs solid on (entry) |
+| `TimeBomb_defused` | terminal — blue LED solid on (entry) |
 
 `BUTTON_PRESSED_SIG` arms the bomb (`blink_ctr = 5`, → `blink`).
 `TIMEOUT_SIG` from a self-armed `TimeEvent` then alternates
@@ -39,10 +40,20 @@ between `TRAN(TimeBomb_blink)` (another cycle) or `TRAN(TimeBomb_boom)`
 `event [guard] / action`. `boom` ignores everything except its own
 `ENTRY_SIG`.
 
-The button (B1 / PC13) is still **not** interrupt-driven — debounced by
-polling inside `App_TimeTickHook()` (Ganssle/Barr algorithm), which also
-drives `TimeEvent_tick()` and posts events into the AO's queue via
-`Active_post()`.
+`BUTTON2_PRESSED_SIG` ("defuse the bomb") transitions to `TimeBomb_defused`
+from every other state — currently a `case` duplicated identically in
+`wait4button`/`blink`/`pause`/`boom`, the motivating example for
+**hierarchical state machines**: the next step is collapsing this
+repeated transition into one handler on a shared superstate instead of
+copy-pasting it per substate.
+
+Both buttons are still **not** interrupt-driven — debounced together by
+polling inside `App_TimeTickHook()` (Ganssle/Barr algorithm, bit-parallel
+over both buttons' pins), which also drives `TimeEvent_tick()` and posts
+events into the AO's queue via `Active_post()`. B1 (PC13, on-board) is
+active-low (on-board pull-up), so its bit is inverted before the shared
+debounce logic runs; B2 (PC0, external) is active-high by construction
+(internal pull-down, button wired to 3V3), so it needs no inversion.
 
 Also includes startup-code hardening: CPU fault handlers and every unused
 peripheral IRQ are routed to a controlled `NVIC_SystemReset()` instead of
@@ -57,7 +68,8 @@ uC/OS-II's ARMv7-M/GNU port, not application code.
 | MCU | STM32F446RE, ARM Cortex-M4F |
 | Onboard LED | LD2 — GPIOA, pin 5 (PA5) |
 | External LED | PA6 / Arduino header D12 → resistor (~220-330 Ω) → LED anode; cathode → GND |
-| User button | B1 (blue) — PC13, polled (not interrupt-driven), reads HIGH while pressed |
+| User button | B1 (blue) — PC13, polled (not interrupt-driven), active-low (on-board pull-up) |
+| Defuse button | B2 (external) — PC0 / Arduino header A5, polled, active-high (internal pull-down, button → 3V3) |
 | Tick source | SysTick, 100 Hz (`OS_TICKS_PER_SEC`; `HCLK` = 16 MHz HSI, no PLL configured) |
 | IDE / Toolchain | STM32CubeIDE (GCC ARM) |
 | Debugger | ST-LINK/V2-1 (on-board) |
@@ -93,8 +105,9 @@ led-blink/
 1. Open in STM32CubeIDE (`File > Open Projects from File System...`, point at
    this folder)
 2. Build (`Ctrl+B`)
-3. Wire the external LED per the Hardware table above if you want both
-   LEDs visible (the onboard LED and B1 button work with no extra wiring)
+3. Wire the external LED and B2 button per the Hardware table above if you
+   want to see both LEDs and both buttons (the onboard LED and B1 button
+   work with no extra wiring)
 4. Connect the Nucleo board via USB, run **Debug** (`led-blink Debug` launch
    configuration is committed in this folder) or **Run**
 

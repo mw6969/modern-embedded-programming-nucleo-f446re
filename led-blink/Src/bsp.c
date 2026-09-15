@@ -3,6 +3,8 @@
 #include "stm32f446xx.h"
 
 #define BTN_B1 (1U << 13)
+#define BTN_B2 (1U << 0)
+#define BTNS_MASK (BTN_B1 | BTN_B2)
 
 /* uCOS-II application hooks =================================================*/
 void App_TimeTickHook(void) {
@@ -16,15 +18,20 @@ void App_TimeTickHook(void) {
 
     TimeEvent_tick(); /* process all uC/AO time events */
 
-    /* Perform the debouncing of the B1 button. The algorithm for debouncing
-     * adapted from the book "Embedded Systems Dictionary" by Jack Ganssle
-     * and Michael Barr, page 71.
+    /* Perform the debouncing of the B1/B2 buttons. The algorithm for
+     * debouncing adapted from the book "Embedded Systems Dictionary" by
+     * Jack Ganssle and Michael Barr, page 71. It works bit-parallel over
+     * a port mask, so B1 and B2 are debounced together in one pass.
      *
-     * NOTE: B1 reads HIGH while pressed (no inversion, unlike a pulled-up
-     * active-low button), matching the EXTI rising-edge wiring used
-     * elsewhere in this project.
+     * NOTE: B1 is active-low (on-board pull-up; reads HIGH at rest, LOW
+     * while pressed) -- confirmed on real hardware (holding B1 keeps the
+     * bomb from arming; releasing it fires the press). B2 is active-high
+     * (external button + internal pull-down configured in BSP_init()).
+     * XOR with BTN_B1 before masking flips just that bit so `current` is
+     * uniformly "1 == pressed" for both buttons, matching the algorithm
+     * below.
      */
-    current = GPIOC->IDR & BTN_B1; /* read B1 */
+    current = (GPIOC->IDR ^ BTN_B1) & BTNS_MASK; /* read B1 (inverted) and B2 */
     tmp = buttons.depressed; /* save the debounced depressed buttons */
     buttons.depressed |= (buttons.previous & current); /* set depressed */
     buttons.depressed &= (buttons.previous | current); /* clear released */
@@ -40,6 +47,18 @@ void App_TimeTickHook(void) {
         	/* post the "button-released" event from ISR */
             static Event const buttonReleasedEvt = {BUTTON_RELEASED_SIG};
             Active_post(AO_TimeBomb, &buttonReleasedEvt);
+        }
+    }
+    if ((tmp & BTN_B2) != 0U) {  /* debounced B2 state changed? */
+        if ((buttons.depressed & BTN_B2) != 0U) { /* is B2 depressed? */
+        	/* post the "button2-pressed" event from ISR */
+            static Event const button2PressedEvt = {BUTTON2_PRESSED_SIG};
+            Active_post(AO_TimeBomb, &button2PressedEvt);
+        }
+        else { /* the button is released */
+        	/* post the "button2-released" event from ISR */
+            static Event const button2ReleasedEvt = {BUTTON2_RELEASED_SIG};
+            Active_post(AO_TimeBomb, &button2ReleasedEvt);
         }
     }
 }
@@ -70,8 +89,16 @@ void BSP_init(void) {
     GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER6);
     GPIOA->MODER |=  (GPIO_MODER_MODER5_0 | GPIO_MODER_MODER6_0);
 
-    /* configure PC13 (B1) as input; B1 reads HIGH while pressed */
+    /* configure PC13 (B1) as input; B1 is active-low (on-board pull-up,
+     * reads LOW while pressed) -- inversion handled in App_TimeTickHook() */
     GPIOC->MODER &= ~GPIO_MODER_MODER13;
+
+    /* configure PC0 (B2, external button) as input with an internal
+     * pull-down, so it reads a defined LOW even before the button is
+     * wired up on the breadboard; B2 reads HIGH while pressed */
+    GPIOC->MODER &= ~GPIO_MODER_MODER0;
+    GPIOC->PUPDR &= ~GPIO_PUPDR_PUPD0;
+    GPIOC->PUPDR |=  GPIO_PUPDR_PUPD0_1;
 }
 /*..........................................................................*/
 void BSP_start(void) {
