@@ -14,30 +14,50 @@ Progression is tracked in the commit history — see `git log` for this folder.
 ## What it does
 
 One active object, `TimeBomb`, implementing the classic "arm, blink,
-explode" state machine used to teach **guard conditions**:
+explode" state machine used to teach **guard conditions**, **entry/exit
+actions**, and the **state handler** implementation strategy. The
+finite-state-machine plumbing (`Fsm_ctor()`/`Fsm_init()`/`Fsm_dispatch()`,
+the `TRAN()` macro, the `ENTRY_SIG`/`EXIT_SIG` synthetic events) now lives
+in `uc_ao.c`/`.h` itself as a reusable `Fsm` base "class" that `Active`
+inherits, instead of being hand-rolled per-AO — any future active object
+gets state-machine support for free.
 
 | State | Meaning |
 |---|---|
-| `WAIT4BUTTON_STATE` | idle, green LED on, waiting for B1 |
-| `BLINK_STATE` | blue LED on for 500 ms |
-| `PAUSE_STATE` | blue LED off for 500 ms |
-| `BOOM_STATE` | terminal — both LEDs solid on |
+| `TimeBomb_wait4button` | idle, green LED on (entry action), waiting for B1 |
+| `TimeBomb_blink` | blue LED on (entry action) for 500 ms |
+| `TimeBomb_pause` | blue LED off (`blink`'s exit action) for 500 ms |
+| `TimeBomb_boom` | terminal — both LEDs solid on (entry action) |
 
-`INIT_SIG` turns the green LED on and enters `WAIT4BUTTON_STATE`.
+Each state is an ordinary C function (a `StateHandler`) that switches on
+`e->sig` and returns a `State` — `TRAN_STATUS`, `HANDLED_STATUS`, or
+`IGNORED_STATUS`. The `TRAN(target_)` macro sets `me->state` to the target
+state function and returns `TRAN_STATUS` in one expression.
+`TimeBomb_initial()` is the AO's initial pseudostate — unconditionally
+`TRAN(TimeBomb_wait4button)`. `Fsm_init()` (called once from
+`Active_eventLoop()` before the event loop starts) runs it, then fires the
+new state's `ENTRY_SIG` — `wait4button`'s green LED goes on before any real
+event is ever dispatched, no `INIT_SIG` special-casing needed. On every
+transition, `Fsm_dispatch()` sends `EXIT_SIG` to the state being left and
+`ENTRY_SIG` to the state being entered — this is where `blink`/`pause`
+arm/re-arm their `TimeEvent`s and where `wait4button`/`blink` turn their
+LEDs on and off.
+
 `BUTTON_PRESSED_SIG` (posted from `App_TimeTickHook()`'s debounce, same as
-before) "arms the bomb": green off, blue on, a 3-blink countdown starts,
-and the machine moves to `BLINK_STATE`. From there, `TIMEOUT_SIG` (from a
-self-armed `TimeEvent`) alternates `BLINK_STATE` ↔ `PAUSE_STATE` every
-500 ms, toggling the blue LED each time.
+before) "arms the bomb": `wait4button`'s exit action turns green off,
+`blink_ctr` is set to 5, and the machine transitions to `TimeBomb_blink`.
+From there, `TIMEOUT_SIG` (from a self-armed `TimeEvent`) alternates
+`blink` ↔ `pause` every 500 ms via their entry/exit actions, toggling the
+blue LED each time.
 
-The interesting transition is `PAUSE_STATE`'s `TIMEOUT_SIG` handler: it
+The interesting transition is `pause`'s `TIMEOUT_SIG` handler: it
 decrements `blink_ctr` and branches on a **guard condition**,
 `[blink_ctr > 0]`, to pick between two different targets for the *same*
-event — loop back to `BLINK_STATE` for another blink, or fall through to
-`BOOM_STATE` (both LEDs solid) once the counter reaches zero. This is the
-textbook UML statechart notation `event [guard] / action` for expressing
-multiple outgoing transitions under one trigger. `BOOM_STATE` itself
-handles no events — it's a dead end, matching the "the bomb went off"
+event — `TRAN(TimeBomb_blink)` for another blink cycle, or
+`TRAN(TimeBomb_boom)` once the counter reaches zero. This is the textbook
+UML statechart notation `event [guard] / action` for expressing multiple
+outgoing transitions under one trigger. `boom` ignores every event except
+its own `ENTRY_SIG` — a dead end, matching the "the bomb went off"
 semantics.
 
 The button (B1 / PC13) is still **not** wired to an EXTI interrupt — it's
@@ -46,14 +66,7 @@ tick), using the classic Ganssle/Barr debounce algorithm, and posted into
 the AO's queue via `Active_post()`. `App_TimeTickHook()` also drives
 `TimeEvent_tick()` every tick, which expires the AO's armed `TimeEvent`
 and posts `TIMEOUT_SIG`. `BUTTON_RELEASED_SIG` is still posted but not
-consumed by `TimeBomb_dispatch()` — this example doesn't need it.
-
-`TimeBomb_dispatch()` keeps the explicit-state-machine shape introduced in
-the previous lesson: an outer `switch (me->state)` with an inner
-`switch (e->sig)` per state, plus an unreachable `default` state case
-guarded by `Q_ASSERT(0)`. `INIT_SIG` is now handled by falling into the
-outer switch (rather than an early `return`) since `WAIT4BUTTON_STATE`'s
-inner switch has no `INIT_SIG` case to accidentally match.
+consumed by any `TimeBomb` state — this example doesn't need it.
 
 Also includes startup-code hardening: CPU fault handlers (NMI, HardFault,
 MemManage, BusFault, UsageFault) and every unused peripheral IRQ are routed
@@ -81,15 +94,15 @@ led-blink/
 ├── Inc/
 │   ├── bsp.h                          # board support package interface
 │   ├── app_cfg.h / os_cfg.h           # this project's uC/OS-II configuration
-│   ├── uc_ao.h                        # uC/AO — Active/TimeEvent base "classes" on top of uC/OS-II
+│   ├── uc_ao.h                        # uC/AO — Fsm/Active/TimeEvent base "classes" on top of uC/OS-II
 │   ├── uCOS2/                         # uC/OS-II headers only (os.h, ucos_ii.h, os_cpu.h, os_trace.h)
 │   ├── Vendor/                        # qassert.h — not written by hand
 │   └── CMSIS/                         # ARM/ST headers — not written by hand
 ├── Src/
 │   ├── bsp.c                          # GPIO, uC/OS-II app hooks (button debounce + TimeEvent_tick), SysTick config
-│   ├── main.c                         # TimeBomb active object + dispatch, starts uC/OS-II
+│   ├── main.c                         # TimeBomb active object (state handlers), starts uC/OS-II
 │   ├── stm32f4xx_it.c                 # fault + unused-IRQ handlers (controlled reset)
-│   ├── uc_ao.c                        # uC/AO implementation (Active, TimeEvent)
+│   ├── uc_ao.c                        # uC/AO implementation (Fsm, Active, TimeEvent)
 │   └── Vendor/                        # newlib stubs + CMSIS system source — not written by hand
 ├── uCOS2/                             # uC/OS-II kernel + ARMv7-M/GNU port, one .c per translation
 │                                       # unit (os_core.c, os_task.c, ... + os_cpu_c.c/os_cpu_a.s/os_dbg.c),
