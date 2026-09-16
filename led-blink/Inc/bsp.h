@@ -1,16 +1,13 @@
 #ifndef BSP_H_
 #define BSP_H_
 
-#include "uc_ao.h" /* UC/AO API */
+#include "qpc.h"
 
 /* systems clock tick [Hz] */
-#define BSP_TICKS_PER_SEC OS_TICKS_PER_SEC
+#define BSP_TICKS_PER_SEC 100
 
 /* initialize the board: GPIO */
 void BSP_init(void);
-
-/* configure and enable the SysTick interrupt (must run after OSInit()) */
-void BSP_start(void);
 
 /* turn the green LED (PA5) on */
 void BSP_ledGreenOn(void);
@@ -28,7 +25,7 @@ void BSP_ledBlueOff(void);
 _Noreturn void assert_failed(char const *file, int line);
 
 enum EventSignals {
-	BUTTON_PRESSED_SIG = USER_SIG,
+	BUTTON_PRESSED_SIG = Q_USER_SIG,
 	BUTTON_RELEASED_SIG,
 	TIMEOUT_SIG,
 	BUTTON2_PRESSED_SIG,
@@ -37,6 +34,6 @@ enum EventSignals {
 };
 
 /* Active objects */
-extern Active *AO_TimeBomb;
+extern QActive *AO_TimeBomb;
 
 #endif /* BSP_H_ */

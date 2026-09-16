@@ -1,4 +1,3 @@
-#include "qassert.h" /* embedded-system-friendly assertions */
 #include "bsp.h"     /* Board Support Package */
 #include "stm32f446xx.h"
 
@@ -6,8 +5,8 @@
 #define BTN_B2 (1U << 0)
 #define BTNS_MASK (BTN_B1 | BTN_B2)
 
-/* uCOS-II application hooks =================================================*/
-void App_TimeTickHook(void) {
+/* ISRs =================================================*/
+void SysTick_Handler(void) {
     /* state of the button debouncing, see below */
     static struct ButtonsDebouncing {
         uint32_t depressed;
@@ -16,7 +15,7 @@ void App_TimeTickHook(void) {
     uint32_t current;
     uint32_t tmp;
 
-    TimeEvent_tick(); /* process all uC/AO time events */
+    QF_TICK_X(0U, (void *)0); /* process all QP/C time QEvts */
 
     /* Perform the debouncing of the B1/B2 buttons. The algorithm for
      * debouncing adapted from the book "Embedded Systems Dictionary" by
@@ -39,42 +38,37 @@ void App_TimeTickHook(void) {
     tmp ^= buttons.depressed;     /* changed debounced depressed */
     if ((tmp & BTN_B1) != 0U) {  /* debounced B1 state changed? */
         if ((buttons.depressed & BTN_B1) != 0U) { /* is B1 depressed? */
-        	/* post the "button-pressed" event from ISR */
-            static Event const buttonPressedEvt = {BUTTON_PRESSED_SIG};
-            Active_post(AO_TimeBomb, &buttonPressedEvt);
+        	/* post the "button-pressed" QEvt from ISR */
+            static QEvt const buttonPressedEvt = {BUTTON_PRESSED_SIG};
+            QACTIVE_POST(AO_TimeBomb, &buttonPressedEvt, 0U);
         }
         else { /* the button is released */
-        	/* post the "button-released" event from ISR */
-            static Event const buttonReleasedEvt = {BUTTON_RELEASED_SIG};
-            Active_post(AO_TimeBomb, &buttonReleasedEvt);
+        	/* post the "button-released" QEvt from ISR */
+            static QEvt const buttonReleasedEvt = {BUTTON_RELEASED_SIG};
+            QACTIVE_POST(AO_TimeBomb, &buttonReleasedEvt, 0U);
         }
     }
     if ((tmp & BTN_B2) != 0U) {  /* debounced B2 state changed? */
         if ((buttons.depressed & BTN_B2) != 0U) { /* is B2 depressed? */
-        	/* post the "button2-pressed" event from ISR */
-            static Event const button2PressedEvt = {BUTTON2_PRESSED_SIG};
-            Active_post(AO_TimeBomb, &button2PressedEvt);
+        	/* post the "button2-pressed" QEvt from ISR */
+            static QEvt const button2PressedEvt = {BUTTON2_PRESSED_SIG};
+            QACTIVE_POST(AO_TimeBomb, &button2PressedEvt, 0U);
         }
         else { /* the button is released */
-        	/* post the "button2-released" event from ISR */
-            static Event const button2ReleasedEvt = {BUTTON2_RELEASED_SIG};
-            Active_post(AO_TimeBomb, &button2ReleasedEvt);
+        	/* post the "button2-released" QEvt from ISR */
+            static QEvt const button2ReleasedEvt = {BUTTON2_RELEASED_SIG};
+            QACTIVE_POST(AO_TimeBomb, &button2ReleasedEvt, 0U);
         }
     }
 }
 /*..........................................................................*/
-void App_TaskIdleHook(void) {
+void QV_onIdle(void) {
 #ifdef NDEBUG
-    __WFI(); /* Wait-For-Interrupt, low-power idle */
+    QV_CPU_SLEEP();
+#else
+    QF_INT_ENABLE(); /* just enable interrupts */
 #endif
 }
-/*..........................................................................*/
-void App_TaskCreateHook(OS_TCB *ptcb) { (void)ptcb; }
-void App_TaskDelHook    (OS_TCB *ptcb) { (void)ptcb; }
-void App_TaskReturnHook (OS_TCB *ptcb) { (void)ptcb; }
-void App_TaskStatHook   (void)         {}
-void App_TaskSwHook     (void)         {}
-void App_TCBInitHook    (OS_TCB *ptcb) { (void)ptcb; }
 
 /* BSP functions ==============================================================*/
 void BSP_init(void) {
@@ -101,13 +95,17 @@ void BSP_init(void) {
     GPIOC->PUPDR |=  GPIO_PUPDR_PUPD0_1;
 }
 /*..........................................................................*/
-void BSP_start(void) {
+void QF_onStartup(void) {
     /* set up the SysTick timer to fire at BSP_TICKS_PER_SEC rate */
-    SysTick_Config(SystemCoreClock / OS_TICKS_PER_SEC);
+    SysTick_Config(SystemCoreClock / BSP_TICKS_PER_SEC);
 
-    /* SysTick calls uC/OS-II API (OSIntEnter/OSTimeTick/OSIntExit), so it
+    /* SysTick calls QP/C API (OSIntEnter/OSTimeTick/OSIntExit), so it
      * must run at a kernel-aware priority level (>= the BASEPRI boundary) */
-    NVIC_SetPriority(SysTick_IRQn, CPU_CFG_KA_IPL_BOUNDARY + 1U);
+    NVIC_SetPriority(SysTick_IRQn, QF_AWARE_ISR_CMSIS_PRI + 1U);
+}
+/*..........................................................................*/
+void QF_onCleanup(void) {
+
 }
 /*..........................................................................*/
 void BSP_ledGreenOn(void) {
@@ -132,6 +130,6 @@ _Noreturn void assert_failed(char const *file, int line) {
     NVIC_SystemReset();
 }
 /*..........................................................................*/
-Q_NORETURN Q_onAssert(char const * const module, int_t const location) {
-    assert_failed(module, location);
+Q_NORETURN Q_onError(char const * const module, int_t const id) {
+    assert_failed(module, id);
 }

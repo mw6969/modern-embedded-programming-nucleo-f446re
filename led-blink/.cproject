@@ -47,7 +47,7 @@
 									<listOptionValue builtIn="false" value="../Inc"/>
 									<listOptionValue builtIn="false" value="../Inc/CMSIS"/>
 									<listOptionValue builtIn="false" value="../Inc/Vendor"/>
-									<listOptionValue builtIn="false" value="../Inc/uCOS2"/>
+									<listOptionValue builtIn="false" value="../Inc/QPC"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.793785467" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -75,9 +75,9 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Inc"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="QPC"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Startup"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="uCOS2"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -125,7 +125,7 @@
 									<listOptionValue builtIn="false" value="../Inc"/>
 									<listOptionValue builtIn="false" value="../Inc/CMSIS"/>
 									<listOptionValue builtIn="false" value="../Inc/Vendor"/>
-									<listOptionValue builtIn="false" value="../Inc/uCOS2"/>
+									<listOptionValue builtIn="false" value="../Inc/QPC"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1698466648" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -153,9 +153,9 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Inc"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="QPC"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Src"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Startup"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="uCOS2"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -183,4 +183,5 @@
 			<autodiscovery enabled="false" problemReportingEnabled="true" selectedProfileId=""/>
 		</scannerConfigBuildInfo>
 	</storageModule>
+	<storageModule moduleId="refreshScope"/>
 </cproject>
