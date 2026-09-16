@@ -39,24 +39,24 @@ void SysTick_Handler(void) {
     if ((tmp & BTN_B1) != 0U) {  /* debounced B1 state changed? */
         if ((buttons.depressed & BTN_B1) != 0U) { /* is B1 depressed? */
         	/* post the "button-pressed" QEvt from ISR */
-            static QEvt const buttonPressedEvt = {BUTTON_PRESSED_SIG};
+            static QEvt const buttonPressedEvt = QEVT_INITIALIZER(BUTTON_PRESSED_SIG);
             QACTIVE_POST(AO_TimeBomb, &buttonPressedEvt, 0U);
         }
         else { /* the button is released */
         	/* post the "button-released" QEvt from ISR */
-            static QEvt const buttonReleasedEvt = {BUTTON_RELEASED_SIG};
+            static QEvt const buttonReleasedEvt = QEVT_INITIALIZER(BUTTON_RELEASED_SIG);
             QACTIVE_POST(AO_TimeBomb, &buttonReleasedEvt, 0U);
         }
     }
     if ((tmp & BTN_B2) != 0U) {  /* debounced B2 state changed? */
         if ((buttons.depressed & BTN_B2) != 0U) { /* is B2 depressed? */
         	/* post the "button2-pressed" QEvt from ISR */
-            static QEvt const button2PressedEvt = {BUTTON2_PRESSED_SIG};
+            static QEvt const button2PressedEvt = QEVT_INITIALIZER(BUTTON2_PRESSED_SIG);
             QACTIVE_POST(AO_TimeBomb, &button2PressedEvt, 0U);
         }
         else { /* the button is released */
         	/* post the "button2-released" QEvt from ISR */
-            static QEvt const button2ReleasedEvt = {BUTTON2_RELEASED_SIG};
+            static QEvt const button2ReleasedEvt = QEVT_INITIALIZER(BUTTON2_RELEASED_SIG);
             QACTIVE_POST(AO_TimeBomb, &button2ReleasedEvt, 0U);
         }
     }
