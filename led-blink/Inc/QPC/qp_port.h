@@ -5,7 +5,7 @@
 //                   ------------------------
 //                   Modern Embedded Software
 //
-// Copyright (C) 2005 Quantum Leaps, LLC. All rights reserved.
+// Copyright (C) 2005 Quantum Leaps, LLC <state-machine.com>.
 //
 // SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-QL-commercial
 //
@@ -31,7 +31,7 @@
 //! @version Last updated for: @ref qpc_7_3_0
 //!
 //! @file
-//! @brief QP/C port to ARM Cortex-M, cooperative QV kernel, GNU-ARM
+//! @brief QP/C port to ARM Cortex-M, dual-mode QXK kernel, GNU-ARM
 
 #ifndef QP_PORT_H_
 #define QP_PORT_H_
@@ -46,12 +46,16 @@
 // no-return function specifier (C11 Standard)
 #define Q_NORETURN   _Noreturn void
 
-// QF configuration for QV -- data members of the QActive class...
+// QF configuration for QXK -- data members of the QActive class...
 
-// QV event-queue used for AOs
+// QActive event-queue type used for AOs and eXtended threads.
 #define QACTIVE_EQUEUE_TYPE     QEQueue
 
-// QF "thread" type used to store the MPU settings in the AO
+// QActive OS-Object type used for the private stack pointer for eXtended threads.
+// (The private stack pointer is NULL for basic-threads).
+#define QACTIVE_OS_OBJ_TYPE     void*
+
+// QActive "thread" type used to store the MPU settings in the AO
 #define QACTIVE_THREAD_TYPE     void const *
 
 // QF interrupt disable/enable and log2()...
@@ -134,52 +138,71 @@
 #endif // def QF_MEM_ISOLATE
 
 // determination if the code executes in the ISR context
+#define QXK_ISR_CONTEXT_()     (QXK_get_IPSR() != 0U)
+
+__attribute__((always_inline))
+static inline uint32_t QXK_get_IPSR(void) {
+    uint32_t regIPSR;
+    __asm volatile ("mrs %0,ipsr" : "=r" (regIPSR));
+    return regIPSR;
+}
+
+// trigger the PendSV exception to perform the context switch
+#define QXK_CONTEXT_SWITCH_()  \
+    *Q_UINT2PTR_CAST(uint32_t, 0xE000ED04U) = (1U << 28U)
+
+// QXK ISR entry and exit
+#define QXK_ISR_ENTRY() ((void)0)
+
+#ifdef QF_MEM_ISOLATE
+    #define QXK_ISR_EXIT()  do {                                  \
+        QF_INT_DISABLE();                                         \
+        QF_MEM_SYS();                                             \
+        if (QXK_sched_() != 0U) {                                 \
+            *Q_UINT2PTR_CAST(uint32_t, 0xE000ED04U) = (1U << 28U);\
+        }                                                         \
+        QF_MEM_APP();                                             \
+        QF_INT_ENABLE();                                          \
+        QXK_ARM_ERRATUM_838869();                                 \
+    } while (false)
+#else
+    #define QXK_ISR_EXIT()  do {                                  \
+        QF_INT_DISABLE();                                         \
+        if (QXK_sched_() != 0U) {                                 \
+            *Q_UINT2PTR_CAST(uint32_t, 0xE000ED04U) = (1U << 28U);\
+        }                                                         \
+        QF_INT_ENABLE();                                          \
+        QXK_ARM_ERRATUM_838869();                                 \
+    } while (false)
+#endif
+
 #if (__ARM_ARCH == 6) // ARMv6-M?
-
-    // macro to put the CPU to sleep inside QV_onIdle()
-    #define QV_CPU_SLEEP() do { \
-        __asm volatile ("wfi"::: "memory"); \
-        QF_MEM_APP();    \
-        QF_INT_ENABLE(); \
-    } while (false)
-
-    #define QV_ARM_ERRATUM_838869() ((void)0)
-
+    #define QXK_ARM_ERRATUM_838869() ((void)0)
 #else // ARMv7-M or higher
-
-    // macro to put the CPU to sleep inside QV_onIdle()
-    #define QV_CPU_SLEEP() do { \
-        QF_PRIMASK_DISABLE();   \
-        QF_MEM_APP();           \
-        QF_INT_ENABLE();        \
-        __asm volatile ("wfi" ::: "memory"); \
-        QF_PRIMASK_ENABLE();    \
-    } while (false)
-
     // The following macro implements the recommended workaround for the
     // ARM Erratum 838869. Specifically, for Cortex-M3/M4/M7 the DSB
     // (memory barrier) instruction needs to be added before exiting an ISR.
-    // This macro should be inserted at the end of ISRs.
-    #define QV_ARM_ERRATUM_838869() \
+    #define QXK_ARM_ERRATUM_838869() \
         __asm volatile ("dsb" ::: "memory")
 
-#endif
+#endif // ARMv6-M
 
-// initialization of the QV kernel
-#define QV_INIT()  QV_init()
-void QV_init(void);
+// initialization of the QXK kernel
+#define QXK_INIT()  QXK_init()
+void QXK_init(void);
+void QXK_thread_ret(void);
 
 #ifdef __ARM_FP         //--------- if VFP available...
 // When the FPU is configured, clear the FPCA bit in the CONTROL register
 // to prevent wasting the stack space for the FPU context.
-#define QV_START()     __asm volatile ("msr CONTROL,%0" :: "r" (0) : "memory")
+#define QXK_START()     __asm volatile ("msr CONTROL,%0" :: "r" (0) : )
 #endif
 
 // include files -------------------------------------------------------------
-#include "qequeue.h"   // QV kernel uses the native QP event queue
-#include "qmpool.h"    // QV kernel uses the native QP memory pool
+#include "qequeue.h"   // QXK kernel uses the native QP event queue
+#include "qmpool.h"    // QXK kernel uses the native QP memory pool
 #include "qp.h"        // QP framework
-#include "qv.h"        // QV kernel
+#include "qxk.h"       // QXK kernel
 
 //============================================================================
 // NOTE2:

@@ -1,189 +1,118 @@
+#include "qpc.h"
 #include "bsp.h"
-#include "qpc.h"   /* QP/C API */
 
-/* The TimeBomb AO */
-typedef struct TimeBomb TimeBomb;
-struct TimeBomb {
-    QActive Q_SUPER; /* inherit QActive base class */
-    /* add private data for the AO... */
+typedef struct {
+    QActive super; /* inherit QActive */
+
+    /* private attribures: */
     QTimeEvt te;
-    uint32_t blink_ctr;
-};
+} Blinky1;
 
-QState TimeBomb_initial(TimeBomb * const me, QEvt const * const e);
-QState TimeBomb_armed(TimeBomb * const me, QEvt const * const e);
-QState TimeBomb_wait4button(TimeBomb * const me, QEvt const * const e);
-QState TimeBomb_blink(TimeBomb * const me, QEvt const * const e);
-QState TimeBomb_pause(TimeBomb * const me, QEvt const * const e);
-QState TimeBomb_boom(TimeBomb * const me, QEvt const * const e);
-QState TimeBomb_defused(TimeBomb * const me, QEvt const * const e);
+void Blinky1_ctor(Blinky1 * const me);
 
-QState TimeBomb_initial(TimeBomb * const me, QEvt const * const e) {
-    return Q_TRAN(TimeBomb_wait4button);
+static QState Blinky1_initial(Blinky1 * const me, void const * const par);
+static QState Blinky1_active(Blinky1 * const me, QEvt const * const e);
+
+/* Blinky1 constructor */
+void Blinky1_ctor(Blinky1 * const me) {
+    QActive_ctor(&me->super, Q_STATE_CAST(&Blinky1_initial));
+    QTimeEvt_ctorX(&me->te, &me->super, TIMEOUT_SIG, 0U);
 }
 
-QState TimeBomb_armed(TimeBomb * const me, QEvt const * const e) {
-    QState status;
-    switch (e->sig) {
-		case Q_EXIT_SIG: {
-			BSP_ledGreenOff();
-			BSP_ledBlueOff();
-			status = Q_HANDLED();
-			break;
-		}
-		case Q_INIT_SIG: {
-			status = Q_TRAN(TimeBomb_wait4button);
-			break;
-		}
-		case BUTTON2_PRESSED_SIG: {
-			status = Q_TRAN(TimeBomb_defused);
-			break;
-		}
-        default: {
-        	status = Q_SUPER(QHsm_top);
-            break;
-        }
-    }
-    return status;
+/* Blinky1 initial pseudostate */
+static QState Blinky1_initial(Blinky1 * const me, void const * const par) {
+    QTimeEvt_armX(&me->te, 2U, 2U);
+    return Q_TRAN(&Blinky1_active);
 }
-
-QState TimeBomb_wait4button(TimeBomb * const me, QEvt const * const e) {
-    QState status;
+/* Blinky1 active state */
+QState Blinky1_active(Blinky1 * const me, QEvt const * const e) {
+    QState status_;
     switch (e->sig) {
-        case Q_ENTRY_SIG: {
-            BSP_ledGreenOn();
-            status = Q_HANDLED();
-            break;
-        }
-        case Q_EXIT_SIG: {
-            BSP_ledGreenOff();
-            status = Q_HANDLED();
-            break;
-        }
-        case BUTTON_PRESSED_SIG: {
-            me->blink_ctr = 5U;
-            status = Q_TRAN(TimeBomb_blink);
-            break;
-        }
-        default: {
-        	status = Q_SUPER(TimeBomb_armed);
-            break;
-        }
-    }
-    return status;
-}
-
-QState TimeBomb_blink(TimeBomb * const me, QEvt const * const e) {
-    QState status;
-    switch (e->sig) {
-        case Q_ENTRY_SIG: {
-            BSP_ledBlueOn();
-            QTimeEvt_armX(&me->te, BSP_TICKS_PER_SEC/2, 0U);
-            status = Q_HANDLED();
-            break;
-        }
-        case Q_EXIT_SIG: {
-            BSP_ledBlueOff();
-            status = Q_HANDLED();
-            break;
-        }
         case TIMEOUT_SIG: {
-            status = Q_TRAN(TimeBomb_pause);
-            break;
-        }
-        default: {
-        	status = Q_SUPER(TimeBomb_armed);
-            break;
-        }
-    }
-    return status;
-}
-
-QState TimeBomb_pause(TimeBomb * const me, QEvt const * const e) {
-    QState status;
-    switch (e->sig) {
-        case Q_ENTRY_SIG: {
-            QTimeEvt_armX(&me->te, BSP_TICKS_PER_SEC/2, 0U);
-            status = Q_HANDLED();
-            break;
-        }
-        case TIMEOUT_SIG: {
-            --me->blink_ctr;
-            if (me->blink_ctr > 0U) {
-                status = Q_TRAN(TimeBomb_blink);
+            uint32_t volatile i;
+            for (i = 1500U; i != 0U; --i) {
+                BSP_ledGreenOn();
+                BSP_ledGreenOff();
             }
-            else {
-                status = Q_TRAN(TimeBomb_boom);
+            status_ = Q_HANDLED();
+            break;
+        }
+        default: {
+            status_ = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+    return status_;
+}
+
+
+typedef struct {
+    QActive super; /* inherit QActive */
+} Blinky2;
+
+void Blinky2_ctor(Blinky2 * const me);
+
+static QState Blinky2_initial(Blinky2 * const me, void const * const par);
+static QState Blinky2_active(Blinky2 * const me, QEvt const * const e);
+
+/* Blinky2 constructor */
+void Blinky2_ctor(Blinky2 * const me) {
+    QActive_ctor(&me->super, Q_STATE_CAST(&Blinky2_initial));
+}
+
+/* Blinky2 initial pseudostate */
+static QState Blinky2_initial(Blinky2 * const me, void const * const par) {
+    return Q_TRAN(&Blinky2_active);
+}
+/* Blinky2 active state */
+QState Blinky2_active(Blinky2 * const me, QEvt const * const e) {
+    QState status_;
+    switch (e->sig) {
+        case BUTTON_PRESS_SIG: {
+            for (uint32_t volatile i = 3*1500U; i != 0U; --i) {
+                BSP_ledBlueOn();
+                BSP_ledBlueOff();
             }
+            status_ = Q_HANDLED();
             break;
         }
         default: {
-        	status = Q_SUPER(TimeBomb_armed);
+            status_ = Q_SUPER(&QHsm_top);
             break;
         }
     }
-    return status;
+    return status_;
 }
 
-QState TimeBomb_boom(TimeBomb * const me, QEvt const * const e) {
-    QState status;
-    switch (e->sig) {
-        case Q_ENTRY_SIG: {
-            BSP_ledGreenOn();
-            BSP_ledBlueOn();
-            status = Q_HANDLED();
-            break;
-        }
-        default: {
-        	status = Q_SUPER(TimeBomb_armed);
-            break;
-        }
-    }
-    return status;
-}
+QEvt const *blinky1_queue[10]; /* queue buffer */
+Blinky1 blinky1;
 
-QState TimeBomb_defused(TimeBomb * const me, QEvt const * const e) {
-    QState status;
-    switch (e->sig) {
-        case Q_ENTRY_SIG: {
-            BSP_ledBlueOn();
-            status = Q_HANDLED();
-            break;
-        }
-		case BUTTON2_PRESSED_SIG: {
-			status = Q_TRAN(TimeBomb_armed);
-			break;
-		}
-        default: {
-        	status = Q_SUPER(QHsm_top);
-            break;
-        }
-    }
-    return status;
-}
+QEvt const *blinky2_queue[10]; /* queue buffer */
+Blinky2 blinky2;
 
-void TimeBomb_ctor(TimeBomb * const me) {
-    QActive_ctor(&me->Q_SUPER, (QStateHandler)&TimeBomb_initial);
-    QTimeEvt_ctorX(&me->te, &me->Q_SUPER, TIMEOUT_SIG, 0U);
-}
+QActive * const AO_Blinky1 = &blinky1.super;
+QActive * const AO_Blinky2 = &blinky2.super;
 
-static QEvt const *timeBomb_queue[10];
-static TimeBomb timeBomb;
-QActive *AO_TimeBomb = &timeBomb.Q_SUPER;
-
-/* the main function */
 int main(void) {
-    BSP_init(); /* initialize the BSP */
-    QF_init();  /* initialize QF and the underlying QV kernel */
+    BSP_init();
+    QF_init();
 
-    /* create AO and start it */
-    TimeBomb_ctor(&timeBomb);
-    QACTIVE_START(AO_TimeBomb,
-    		     2U,
-				 timeBomb_queue,
-				 sizeof(timeBomb_queue)/sizeof(timeBomb_queue[0]),
-				 (void *)0, 0U,
-				 (void *)0);
+    /* initialize and start blinky1 thread */
+    Blinky1_ctor(&blinky1);
+    QACTIVE_START(&blinky1,
+                   5U, /* priority */
+                   blinky1_queue, Q_DIM(blinky1_queue), /* event queue */
+                   (void *)0, 0, /* stack memory, stack size (not used) */
+                   (void *)0); /* extra parameter (not used) */
 
-    return QF_run(); /* run the QF application, NOTE: does NOT return */
+    /* initialize and start blinky2 thread */
+    Blinky2_ctor(&blinky2);
+    QACTIVE_START(&blinky2,
+                   2U, /* priority */
+                   blinky2_queue, Q_DIM(blinky2_queue), /* event queue */
+                   (void *)0, 0, /* stack memory, stack size (not used) */
+                   (void *)0); /* extra parameter (not used) */
+
+    /* transfer control to the RTOS to run the threads */
+    return QF_run();
 }

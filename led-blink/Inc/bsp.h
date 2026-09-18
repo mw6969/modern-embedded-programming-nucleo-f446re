@@ -4,15 +4,15 @@
 #include "qpc.h"
 
 /* systems clock tick [Hz] */
-#define BSP_TICKS_PER_SEC 100
+#define BSP_TICKS_PER_SEC 1000U
 
 /* initialize the board: GPIO */
 void BSP_init(void);
 
-/* turn the green LED (PA5) on */
+/* turn the green LED on */
 void BSP_ledGreenOn(void);
 
-/* turn the green LED (PA5) off */
+/* turn the green LED off */
 void BSP_ledGreenOff(void);
 
 /* turn the external blue LED (PA6) on */
@@ -24,16 +24,15 @@ void BSP_ledBlueOff(void);
 /* single "damage control" entry point for every fault and currently-unhandled interrupt */
 _Noreturn void assert_failed(char const *file, int line);
 
-enum EventSignals {
-	BUTTON_PRESSED_SIG = Q_USER_SIG,
-	BUTTON_RELEASED_SIG,
-	TIMEOUT_SIG,
-	BUTTON2_PRESSED_SIG,
-	BUTTON2_RELEASED_SIG,
-	MAX_SIG
+enum {
+    TIMEOUT_SIG = Q_USER_SIG,
+    BUTTON_PRESS_SIG,
+
+    /* keep always last */
+    MAX_SIG
 };
 
-/* Active objects */
-extern QActive *AO_TimeBomb;
+extern QActive * const AO_Blinky1;
+extern QActive * const AO_Blinky2;
 
 #endif /* BSP_H_ */
