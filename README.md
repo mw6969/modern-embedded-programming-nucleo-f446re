@@ -1,67 +1,46 @@
 # LED Blink
 
-Bare-metal on the STM32 Nucleo-F446RE. Started as a simple LED blink and
-went through several increasingly "real" concurrency models (hand-rolled
-kernel → QP/C's QXK → uC/OS-II + a hand-rolled uC/AO Active-Object layer).
-It now runs on the real **Quantum Leaps QP/C** library (QEP state machine
-engine + QF + the preemptive **QXK** kernel) — no more hand-rolled AO/FSM
-plumbing. No HAL, no CubeMX drivers; registers are hand-rolled. Progression
-is tracked in `git log`.
+Bare-metal on the STM32 Nucleo-F446RE, running on the real **Quantum Leaps
+QP/C** library (QEP + QF + the preemptive **QXK** kernel). No HAL, no CubeMX
+drivers; registers are hand-rolled. Project history is in `git log`.
 
 ## What it does
 
-Two flat `QActive` objects demonstrate **Run-to-Completion (RTC) execution**
-together with **Rate-Monotonic Scheduling (RMS)**:
+Two `QActive` objects demonstrate **Run-to-Completion (RTC)** together with
+**Rate-Monotonic Scheduling (RMS)**:
 
-- `Blinky1` (priority **5**, highest) — a periodic `QTimeEvt` fires every
-  2 ticks (initially); its handler busy-loops the onboard green LED 1500
-  times to stand in for a short processing time (its WCET). Period and loop
-  length can be changed at runtime by a `BLINK_PATTERN_SIG` event (see below).
-- `Blinky2` (priority **2**) — woken by a `BUTTON_PRESS_SIG` posted from the
-  B1 EXTI ISR; its handler busy-loops the external blue LED 3× as long
-  (4500 times) to stand in for a longer, less frequent job, then posts a
-  dynamic `BlinkPatternEvt` to `Blinky1`.
+| AO | Prio | Trigger | Handler (busy-loop = stand-in for WCET) |
+|---|---|---|---|
+| `Blinky1` | 5 (highest) | periodic `QTimeEvt`, 2 ticks initially | green LED, 1500 iterations |
+| `Blinky2` | 2 | `BUTTON_PRESS_SIG` from the B1 EXTI ISR | blue LED, 4500 iterations, then posts `BlinkPatternEvt` to `Blinky1` |
 
-Each handler always runs to completion once started — no reentrancy, no
-locks needed for an AO's own state. But RTC only protects an AO from *its
-own* future events; a lower-priority AO's handler can still be **preempted
-mid-execution** by a higher-priority one, because QXK is a real preemptive
-kernel. Classic RMS says: shorter period → higher priority, which is exactly
-how `Blinky1`/`Blinky2` are assigned here — the pair is a minimal, physical
-demonstration of priority-based preemptive scheduling among active objects.
+RTC protects an AO only from its *own* future events; a lower-priority handler
+can still be **preempted mid-execution** by a higher-priority AO. RMS (shorter
+period → higher priority) is how the two priorities are assigned.
 
-### Dynamic events (event pool)
+Both loops last a few dozen µs, so the LEDs don't visibly blink — observe with
+a logic analyzer/scope.
 
-Pressing B1 now also changes how `Blinky1` blinks. On each press `Blinky2`
-allocates a **dynamic event** with `Q_NEW(BlinkPatternEvt, BLINK_PATTERN_SIG)`
-from a QF event pool (`QF_poolInit()`, 10 blocks), fills in the parameters
-and posts it to `AO_Blinky1` with `QACTIVE_POST()`. `BlinkPatternEvt` is a
-`QEvt` subclass carrying `ticks` (new timer period) and `iter` (busy-loop
-length). `Blinky1` re-arms its `QTimeEvt` with the new period and stores
-`iter` in its private state. `Blinky2` cycles through a two-entry table
-(`{2 ticks, 1500}` ↔ `{1 tick, 750}`), so every press toggles between a slow
-and a fast pattern. QF recycles the event automatically after the receiver's
-handler returns — no manual free.
+### Dynamic events
 
-Both busy-loops run in a few dozen microseconds — far faster than the eye's
-flicker-fusion threshold, so neither LED visibly "blinks" during a handler;
-this is meant for a logic analyzer/scope, not naked-eye observation (same
-convention as earlier busy-loop lessons in this project).
+On each B1 press `Blinky2` allocates a `BlinkPatternEvt` (a `QEvt` subclass
+with `ticks` and `iter`) via `Q_NEW()` from a QF pool (`QF_poolInit()`, 10
+blocks) and posts it to `AO_Blinky1` with `QACTIVE_POST()`. `Blinky1` re-arms
+its `QTimeEvt` with `ticks` and stores `iter`. `Blinky2` alternates between
+`{2 ticks, 1500}` and `{1 tick, 750}`. QF recycles the event after the
+receiver's handler returns.
 
-B1 (PC13, on-board, active-low) is interrupt-driven again (`EXTI15_10_IRQHandler`,
-falling edge — pressing pulls the pin LOW), posting `BUTTON_PRESS_SIG`
-straight to `AO_Blinky2` via `QACTIVE_POST()`. `SysTick_Handler` only drives
-`QF_TICK_X()` now (no polling/debounce — that was specific to the earlier
-`TimeBomb`/uC-AO lessons and doesn't apply here).
+### Interrupts & faults
 
-CPU faults and every unused IRQ resolve to a controlled `NVIC_SystemReset()`
-(`stm32f4xx_it.c`), also wired up as QP/C's own `Q_onError()` handler — so
-an internal QP/C safety check failure resets the same way a HardFault would.
+- B1 (PC13, active-low) uses `EXTI15_10_IRQHandler` on the falling edge and
+  posts `BUTTON_PRESS_SIG` to `AO_Blinky2`.
+- `SysTick_Handler` only drives `QF_TICK_X()` — no polling/debounce.
+- CPU faults, unused IRQs and QP/C's `Q_onError()` all end in
+  `NVIC_SystemReset()` (`stm32f4xx_it.c`).
 
-> **Gotcha we hit:** static `QEvt` instances must be built with
-> `QEVT_INITIALIZER(SIG)`, not a bare `{SIG}` aggregate — real QP/C tags
-> every event with a safety-marker byte and resets the MCU on the first
-> `QACTIVE_POST()` of an untagged one.
+> **Gotcha:** static `QEvt`s must use `QEVT_INITIALIZER(SIG)`, not a bare
+> `{SIG}` — QP/C tags events with a safety marker and resets the MCU on the
+> first `QACTIVE_POST()` of an untagged one.
 
 ## Hardware & Tools
 
@@ -69,11 +48,11 @@ an internal QP/C safety check failure resets the same way a HardFault would.
 |---|---|
 | Board / MCU | Nucleo-64 F446RE, STM32F446RE (Cortex-M4F) |
 | Onboard LED | LD2 — PA5 |
-| External LED | PA6 → resistor (~220–330 Ω) → LED anode; cathode → GND |
-| User button | B1 (blue, on-board) — PC13, active-low, interrupt-driven (EXTI15_10) |
-| Tick source | SysTick, 1 kHz (`BSP_TICKS_PER_SEC`; `HCLK` = 16 MHz HSI) |
+| External LED | PA6 → ~220–330 Ω → LED anode; cathode → GND |
+| User button | B1 — PC13, active-low, EXTI15_10 |
+| Tick source | SysTick, 1 kHz (`BSP_TICKS_PER_SEC`); HCLK = 16 MHz HSI |
 | Kernel | QP/C QXK (preemptive) |
-| IDE / Debugger | STM32CubeIDE (GCC ARM) / ST-LINK/V2-1 (on-board) |
+| IDE / Debugger | STM32CubeIDE (GCC ARM) / on-board ST-LINK/V2-1 |
 
 ## Project structure
 
@@ -81,25 +60,26 @@ an internal QP/C safety check failure resets the same way a HardFault would.
 led-blink/
 ├── Inc/
 │   ├── bsp.h        # BSP interface + AO/signal declarations
-│   ├── QPC/         # real Quantum Leaps QP/C headers — not written by hand
-│   └── CMSIS/       # ARM/ST headers — not written by hand
+│   ├── QPC/, CMSIS/ # vendor headers
 ├── Src/
-│   ├── bsp.c        # GPIO, B1 EXTI ISR, SysTick_Handler (QF_TICK_X), QF_on*/QXK_onIdle/Q_onError callbacks
-│   ├── main.c       # Blinky1/Blinky2 AOs (RTC + RMS demo), QF_init/QACTIVE_START/QF_run
+│   ├── bsp.c        # GPIO, B1 ISR, SysTick, QF_on*/QXK_onIdle/Q_onError
+│   ├── main.c       # Blinky1/Blinky2 AOs, QF_init/QACTIVE_START/QF_run
 │   ├── stm32f4xx_it.c
-│   └── Vendor/      # newlib stubs + CMSIS system source — not written by hand
-├── QPC/             # real Quantum Leaps QP/C sources (QEP/QF/QXK) — not written by hand
+│   └── Vendor/      # newlib stubs + CMSIS system source
+├── QPC/             # QP/C sources (QEP/QF/QXK)
 ├── Startup/         # reset handler, vector table
 └── STM32F446RETX_FLASH.ld / _RAM.ld
 ```
 
+`QPC/`, `CMSIS/` and `Vendor/` are third-party code, not hand-written.
+
 ## Build & run
 
 1. Open in STM32CubeIDE and build (`Ctrl+B`)
-2. Wire the external blue LED per the table above (onboard LED/B1 need no wiring)
+2. Wire the external LED per the table above (LD2 and B1 need no wiring)
 3. Connect via USB, then **Run** or **Debug**
 
-## Reference Documents
+## References
 
 - [STM32F446xx Reference Manual (RM0390)](https://www.st.com/resource/en/reference_manual/rm0390-stm32f446xx-advanced-armbased-32bit-mcus-stmicroelectronics.pdf)
-- [STM32 Nucleo-64 Boards (MB1136) User Manual (UM1724)](https://www.st.com/resource/en/user_manual/um1724-stm32-nucleo64-boards-mb1136-stmicroelectronics.pdf)
+- [Nucleo-64 User Manual (UM1724)](https://www.st.com/resource/en/user_manual/um1724-stm32-nucleo64-boards-mb1136-stmicroelectronics.pdf)
