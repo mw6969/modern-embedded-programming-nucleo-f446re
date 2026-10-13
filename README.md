@@ -14,11 +14,13 @@ Two flat `QActive` objects demonstrate **Run-to-Completion (RTC) execution**
 together with **Rate-Monotonic Scheduling (RMS)**:
 
 - `Blinky1` (priority **5**, highest) — a periodic `QTimeEvt` fires every
-  2 ticks; its handler busy-loops the onboard green LED 1500 times to stand
-  in for a short, fixed processing time (its WCET).
+  2 ticks (initially); its handler busy-loops the onboard green LED 1500
+  times to stand in for a short processing time (its WCET). Period and loop
+  length can be changed at runtime by a `BLINK_PATTERN_SIG` event (see below).
 - `Blinky2` (priority **2**) — woken by a `BUTTON_PRESS_SIG` posted from the
   B1 EXTI ISR; its handler busy-loops the external blue LED 3× as long
-  (4500 times) to stand in for a longer, less frequent job.
+  (4500 times) to stand in for a longer, less frequent job, then posts a
+  dynamic `BlinkPatternEvt` to `Blinky1`.
 
 Each handler always runs to completion once started — no reentrancy, no
 locks needed for an AO's own state. But RTC only protects an AO from *its
@@ -27,6 +29,19 @@ mid-execution** by a higher-priority one, because QXK is a real preemptive
 kernel. Classic RMS says: shorter period → higher priority, which is exactly
 how `Blinky1`/`Blinky2` are assigned here — the pair is a minimal, physical
 demonstration of priority-based preemptive scheduling among active objects.
+
+### Dynamic events (event pool)
+
+Pressing B1 now also changes how `Blinky1` blinks. On each press `Blinky2`
+allocates a **dynamic event** with `Q_NEW(BlinkPatternEvt, BLINK_PATTERN_SIG)`
+from a QF event pool (`QF_poolInit()`, 10 blocks), fills in the parameters
+and posts it to `AO_Blinky1` with `QACTIVE_POST()`. `BlinkPatternEvt` is a
+`QEvt` subclass carrying `ticks` (new timer period) and `iter` (busy-loop
+length). `Blinky1` re-arms its `QTimeEvt` with the new period and stores
+`iter` in its private state. `Blinky2` cycles through a two-entry table
+(`{2 ticks, 1500}` ↔ `{1 tick, 750}`), so every press toggles between a slow
+and a fast pattern. QF recycles the event automatically after the receiver's
+handler returns — no manual free.
 
 Both busy-loops run in a few dozen microseconds — far faster than the eye's
 flicker-fusion threshold, so neither LED visibly "blinks" during a handler;

@@ -2,10 +2,19 @@
 #include "bsp.h"
 
 typedef struct {
+    QEvt super; /* inherit QEvt */
+
+    /* event parameters: */
+    uint8_t ticks;
+    uint32_t iter;
+} BlinkPatternEvt;
+
+typedef struct {
     QActive super; /* inherit QActive */
 
     /* private attribures: */
     QTimeEvt te;
+    uint32_t iter;
 } Blinky1;
 
 void Blinky1_ctor(Blinky1 * const me);
@@ -22,15 +31,23 @@ void Blinky1_ctor(Blinky1 * const me) {
 /* Blinky1 initial pseudostate */
 static QState Blinky1_initial(Blinky1 * const me, void const * const par) {
     QTimeEvt_armX(&me->te, 2U, 2U);
+    me->iter = 1500U;
     return Q_TRAN(&Blinky1_active);
 }
 /* Blinky1 active state */
 QState Blinky1_active(Blinky1 * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
+        case BLINK_PATTERN_SIG: {
+            QTimeEvt_disarm(&me->te);
+            QTimeEvt_armX(&me->te, ((BlinkPatternEvt const*)e)->ticks,
+                                   ((BlinkPatternEvt const*)e)->ticks);
+            me->iter = ((BlinkPatternEvt const*)e)->iter;
+            status_ = Q_HANDLED();
+            break;
+        }
         case TIMEOUT_SIG: {
-            uint32_t volatile i;
-            for (i = 1500U; i != 0U; --i) {
+            for (uint32_t i = me->iter; i != 0U; --i) {
                 BSP_ledGreenOn();
                 BSP_ledGreenOff();
             }
@@ -48,6 +65,7 @@ QState Blinky1_active(Blinky1 * const me, QEvt const * const e) {
 
 typedef struct {
     QActive super; /* inherit QActive */
+    uint8_t seq; /* sequence counter for Blinky1 */
 } Blinky2;
 
 void Blinky2_ctor(Blinky2 * const me);
@@ -62,6 +80,7 @@ void Blinky2_ctor(Blinky2 * const me) {
 
 /* Blinky2 initial pseudostate */
 static QState Blinky2_initial(Blinky2 * const me, void const * const par) {
+    me->seq = 0U;
     return Q_TRAN(&Blinky2_active);
 }
 /* Blinky2 active state */
@@ -69,10 +88,22 @@ QState Blinky2_active(Blinky2 * const me, QEvt const * const e) {
     QState status_;
     switch (e->sig) {
         case BUTTON_PRESS_SIG: {
+            enum { N_SEQ = 2 };
+            static uint8_t const n_ticks[N_SEQ] = { 2U, 1U };
+            static uint32_t const n_iter[N_SEQ] = { 1500U, 750U };
+
+            /* advance and wrap-around the sequence counter */
+            me->seq = (me->seq + 1U) % N_SEQ;
+
+            BlinkPatternEvt *bpe = Q_NEW(BlinkPatternEvt, BLINK_PATTERN_SIG);
+            bpe->ticks = n_ticks[me->seq];
             for (uint32_t volatile i = 3*1500U; i != 0U; --i) {
                 BSP_ledBlueOn();
                 BSP_ledBlueOff();
             }
+            bpe->iter = n_iter[me->seq];
+            QACTIVE_POST(AO_Blinky1, &bpe->super, 0U);
+
             status_ = Q_HANDLED();
             break;
         }
@@ -90,12 +121,16 @@ Blinky1 blinky1;
 QEvt const *blinky2_queue[10]; /* queue buffer */
 Blinky2 blinky2;
 
+static BlinkPatternEvt evtPool[10];
+
 QActive * const AO_Blinky1 = &blinky1.super;
 QActive * const AO_Blinky2 = &blinky2.super;
 
 int main(void) {
     BSP_init();
     QF_init();
+
+    QF_poolInit(evtPool, sizeof(evtPool), sizeof(evtPool[0]));
 
     /* initialize and start blinky1 thread */
     Blinky1_ctor(&blinky1);

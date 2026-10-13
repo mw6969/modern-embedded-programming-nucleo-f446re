@@ -27,6 +27,7 @@ _Noreturn void assert_failed(char const *file, int line);
 enum {
     TIMEOUT_SIG = Q_USER_SIG,
     BUTTON_PRESS_SIG,
+    BLINK_PATTERN_SIG,
 
     /* keep always last */
     MAX_SIG
