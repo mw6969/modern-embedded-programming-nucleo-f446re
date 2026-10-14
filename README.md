@@ -38,6 +38,13 @@ receiver's handler returns.
 - CPU faults, unused IRQs and QP/C's `Q_onError()` all end in
   `NVIC_SystemReset()` (`stm32f4xx_it.c`).
 
+### Tracing
+
+`MY_PRINTF()` (`Inc/my_printf.h`) prints LED/button events over **USART2**
+(PA2/PA3, 115200 8-N-1) via the ST-LINK Virtual COM Port — open it in any
+serial terminal. Comment out `#define SPY` to compile tracing out. newlib's
+`printf()` reaches the UART through `__io_putchar()` (not `fputc()`).
+
 > **Gotcha:** static `QEvt`s must use `QEVT_INITIALIZER(SIG)`, not a bare
 > `{SIG}` — QP/C tags events with a safety marker and resets the MCU on the
 > first `QACTIVE_POST()` of an untagged one.
@@ -50,6 +57,7 @@ receiver's handler returns.
 | Onboard LED | LD2 — PA5 |
 | External LED | PA6 → ~220–330 Ω → LED anode; cathode → GND |
 | User button | B1 — PC13, active-low, EXTI15_10 |
+| Trace output | USART2 PA2/PA3 → ST-LINK VCP, 115200 8-N-1 |
 | Tick source | SysTick, 1 kHz (`BSP_TICKS_PER_SEC`); HCLK = 16 MHz HSI |
 | Kernel | QP/C QXK (preemptive) |
 | IDE / Debugger | STM32CubeIDE (GCC ARM) / on-board ST-LINK/V2-1 |
@@ -60,9 +68,10 @@ receiver's handler returns.
 led-blink/
 ├── Inc/
 │   ├── bsp.h        # BSP interface + AO/signal declarations
+│   ├── my_printf.h  # MY_PRINTF() tracing macros (SPY switch)
 │   ├── QPC/, CMSIS/ # vendor headers
 ├── Src/
-│   ├── bsp.c        # GPIO, B1 ISR, SysTick, QF_on*/QXK_onIdle/Q_onError
+│   ├── bsp.c        # GPIO, B1 ISR, SysTick, USART2 trace, QF_on*/QXK_onIdle/Q_onError
 │   ├── main.c       # Blinky1/Blinky2 AOs, QF_init/QACTIVE_START/QF_run
 │   ├── stm32f4xx_it.c
 │   └── Vendor/      # newlib stubs + CMSIS system source
